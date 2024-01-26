@@ -28,13 +28,18 @@ dat |>
   dplyr::summarise(total_area = sum(seg_length_km * seg_width_km_lg)) |>
   print(n = Inf)
 
-# mapview interactive plot
-m <- dat |>
-  # dplyr::filter(year < 1982) |>
-  mapview::mapview(zcol = "year", burst = TRUE, cex = 3, alpha = 0, label = "survey_id", hide = TRUE)
+# # mapview interactive plot
+# m <- dat |>
+#   # dplyr::filter(year < 1990) |>
+#   mapview::mapview(zcol = "year", burst = TRUE, cex = 3, alpha = 0, label = "survey_id", hide = TRUE)
+#
+# mapview::mapshot2(m, url = "data/map-data-by-year.html")
+# browseURL("data/map-data-by-year.html")
 
-mapview::mapshot2(m, url = "data/map-data-by-year.html")
-browseURL("data/map-data-by-year.html")
+# save individual file data file for each year
+dat |>
+  dplyr::group_by(year) |>
+  dplyr::group_walk(~ sf::write_sf(.x, stringr::str_c("data/_segmented-data-", .y$year, ".gpkg")))
 
 
 # load NPPSD data
