@@ -12,7 +12,7 @@ temp <- tempfile()
 url <- "https://www.ngdc.noaa.gov/mgg/shorelines/data/gshhg/latest/gshhg-shp-2.3.7.tar.gz"
 download.file(url, temp)
 tempfiles <- unzip(temp, list = TRUE)
-untar(temp, exdir = "data-raw/GSHHG")
+untar(temp, exdir = "data/GSHHG")
 
 
 # download natural earth data states & provinces polygon shapefile --------
@@ -28,4 +28,4 @@ states <- sf::st_read(tempdir(), layer = "ne_10m_admin_1_states_provinces") |>
   dplyr::filter(adm0_a3 %in% c("CAN", "MEX", "USA"))
 
 # save polygon as GPKG
-sf::write_sf(states, "data-raw/states-provinces.gpkg")
+sf::write_sf(states, "data/states-provinces.gpkg")
