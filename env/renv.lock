@@ -9,7 +9,7 @@
     ]
   },
   "Python": {
-    "Version": "3.9.18",
+    "Version": "3.9.13",
     "Type": "virtualenv",
     "Name": "./renv/python/virtualenvs/renv-python-3.9"
   },
@@ -387,6 +387,28 @@
       ],
       "Hash": "f20c47fd52fae58b4e377c37bb8c335b"
     },
+    "cols4all": {
+      "Package": "cols4all",
+      "Version": "0.7",
+      "Source": "GitHub",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteRepo": "cols4all",
+      "RemoteUsername": "mtennekes",
+      "RemoteRef": "HEAD",
+      "RemoteSha": "91856c0d805b358a714b7442f431527ca6618cc7",
+      "Requirements": [
+        "R",
+        "abind",
+        "colorspace",
+        "grDevices",
+        "methods",
+        "png",
+        "stats",
+        "stringdist"
+      ],
+      "Hash": "f46404e3ecaba040aa3ae9956f0977ab"
+    },
     "cpp11": {
       "Package": "cpp11",
       "Version": "0.4.7",
@@ -434,14 +456,14 @@
     },
     "data.table": {
       "Package": "data.table",
-      "Version": "1.14.10",
+      "Version": "1.15.0",
       "Source": "Repository",
       "Repository": "RSPM",
       "Requirements": [
         "R",
         "methods"
       ],
-      "Hash": "6ea17a32294d8ca00455825ab0cf71b9"
+      "Hash": "cfbbb4aed6e78cd45f17123a9ec9981a"
     },
     "dichromat": {
       "Package": "dichromat",
@@ -979,6 +1001,36 @@
         "sf"
       ],
       "Hash": "6b43f986a9a0c1c1810b2deec71bfdf2"
+    },
+    "leafgl": {
+      "Package": "leafgl",
+      "Version": "0.1.1",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "geojsonsf",
+        "grDevices",
+        "htmltools",
+        "jsonify",
+        "leaflet",
+        "sf"
+      ],
+      "Hash": "d6b521a3382490f766de5fedf95fc1af"
+    },
+    "leaflegend": {
+      "Package": "leaflegend",
+      "Version": "1.2.0",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "R",
+        "base64enc",
+        "htmltools",
+        "htmlwidgets",
+        "leaflet",
+        "stats"
+      ],
+      "Hash": "f609c36c3bef4560d888df8a8398b637"
     },
     "leaflet": {
       "Package": "leaflet",
@@ -1586,6 +1638,17 @@
       ],
       "Hash": "8b4284bf9fddfb481d516877a2045023"
     },
+    "stringdist": {
+      "Package": "stringdist",
+      "Version": "0.9.12",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "R",
+        "parallel"
+      ],
+      "Hash": "f360720fa3feb7db9d4133b31ebb067f"
+    },
     "stringi": {
       "Package": "stringi",
       "Version": "1.8.3",
@@ -1652,7 +1715,7 @@
     },
     "terra": {
       "Package": "terra",
-      "Version": "1.7-71",
+      "Version": "1.7-65",
       "Source": "Repository",
       "Repository": "RSPM",
       "Requirements": [
@@ -1660,7 +1723,7 @@
         "Rcpp",
         "methods"
       ],
-      "Hash": "e8611881ab70a4fb7a1f629b31e6fcff"
+      "Hash": "8e245fd4eab07bf55ddb2e6ea353c0e1"
     },
     "tibble": {
       "Package": "tibble",
@@ -1743,18 +1806,26 @@
     },
     "tmap": {
       "Package": "tmap",
-      "Version": "3.3-4",
-      "Source": "Repository",
-      "Repository": "RSPM",
+      "Version": "3.99.9000",
+      "Source": "GitHub",
+      "Remotes": "mtennekes/cols4all, r-tmap/tmaptools",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteRepo": "tmap",
+      "RemoteUsername": "r-tmap",
+      "RemoteRef": "HEAD",
+      "RemoteSha": "43e49d7308c34de613dea644ee7219db6d4e1e24",
       "Requirements": [
         "R",
-        "RColorBrewer",
-        "abind",
         "classInt",
+        "cols4all",
+        "data.table",
         "grid",
         "htmltools",
         "htmlwidgets",
         "leafem",
+        "leafgl",
+        "leaflegend",
         "leaflet",
         "leafsync",
         "methods",
@@ -1765,16 +1836,20 @@
         "tmaptools",
         "units",
         "utils",
-        "viridisLite",
         "widgetframe"
       ],
-      "Hash": "c65363bc002492caf754352499ce2386"
+      "Hash": "31e5b79d03621346c0311d7c39594bfe"
     },
     "tmaptools": {
       "Package": "tmaptools",
       "Version": "3.1-1",
-      "Source": "Repository",
-      "Repository": "RSPM",
+      "Source": "GitHub",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteRepo": "tmaptools",
+      "RemoteUsername": "r-tmap",
+      "RemoteRef": "HEAD",
+      "RemoteSha": "0c8b0b1c68bb20c7561715011812ca39e2085132",
       "Requirements": [
         "R",
         "RColorBrewer",
@@ -1790,7 +1865,7 @@
         "units",
         "viridisLite"
       ],
-      "Hash": "dfcb77371df343b663d6668d2d63ac35"
+      "Hash": "fba3aa3f5cd962b3dcfc8ea604e2ce59"
     },
     "tzdb": {
       "Package": "tzdb",
