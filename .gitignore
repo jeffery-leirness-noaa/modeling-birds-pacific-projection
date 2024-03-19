@@ -6,5 +6,6 @@
 .quarto
 *.amltmp
 *.amltemp
+*.amlsas
 notes/
 _targets/
