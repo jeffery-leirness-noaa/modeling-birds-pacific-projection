@@ -57,12 +57,21 @@ r <- terra::rast(paste("https://nccospacificsbdatastor.blob.core.windows.net/pro
 
 
 # hard code container-level SAS obtained via Microsoft Azure Storage Explorer
-# this method is successful!
-usersas <- "sv=2023-01-03&st=2024-02-21T15%3A59%3A20Z&se=2024-02-22T15%3A59%3A20Z&skoid=8b019ad4-f16e-4b34-a2ee-d46e2ef407f4&sktid=abc10057-d592-4f3c-a901-c5e4c87b50cf&skt=2024-02-21T15%3A59%3A20Z&ske=2024-02-22T15%3A59%3A20Z&sks=b&skv=2023-01-03&sr=c&sp=rl&sig=0zH6idpWHUqw1hRV8UujmVKGDxFCwWt8G%2FhVFaDq7EQ%3D"
+# this method is successful for reading files!
+usersas <- "?sv=2023-01-03&st=2024-03-19T15%3A25%3A29Z&se=2024-03-26T15%3A25%3A00Z&skoid=8b019ad4-f16e-4b34-a2ee-d46e2ef407f4&sktid=abc10057-d592-4f3c-a901-c5e4c87b50cf&skt=2024-03-19T15%3A25%3A29Z&ske=2024-03-26T15%3A25%3A00Z&sks=b&skv=2023-01-03&sr=c&sp=rwl&sig=9d2V9YIsWFGvwVaSsw7ZUJhkaS1XATjn9CVgnF4xs0M%3D"
 r <- terra::rast(paste("https://nccospacificsbdatastor.blob.core.windows.net/processing/chla-fall.tif",
                        usersas, sep = "?"))
 sa <- sf::read_sf(paste("https://nccospacificsbdatastor.blob.core.windows.net/processing/study-area.gpkg",
                         usersas, sep = "?"))
+
+# but not successful for writing files
+fn <- paste("https://nccospacificsbdatastor.blob.core.windows.net/processing/chla-fall-test1.tif",
+            usersas, sep = "?")
+terra::writeRaster(r, filename = fn, filetype = "GTiff", overwrite = TRUE)
+fn <- paste("https://nccospacificsbdatastor.blob.core.windows.net/processing/mtcars-test1.csv",
+            usersas, sep = "?")
+data(mtcars)
+write.csv(mtcars, fn)
 
 
 
