@@ -5,7 +5,7 @@
 reticulate::source_python("../File-Transfer-Solution/file_transfer.py")
 
 account_url <- "https://nccospacificsbdatastor.blob.core.windows.net"
-container_name <- "processing"
+container_name <- "raw"
 local_folder <- "data"
 cloud_folder <- ""
 
