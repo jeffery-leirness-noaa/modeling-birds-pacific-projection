@@ -389,14 +389,14 @@
     },
     "cols4all": {
       "Package": "cols4all",
-      "Version": "0.7",
+      "Version": "0.7-1",
       "Source": "GitHub",
       "RemoteType": "github",
       "RemoteHost": "api.github.com",
-      "RemoteRepo": "cols4all",
       "RemoteUsername": "mtennekes",
-      "RemoteRef": "HEAD",
-      "RemoteSha": "91856c0d805b358a714b7442f431527ca6618cc7",
+      "RemoteRepo": "cols4all",
+      "RemoteRef": "main",
+      "RemoteSha": "da1250709469eebdd6f15d7b83629c38492a2030",
       "Requirements": [
         "R",
         "abind",
@@ -404,10 +404,11 @@
         "grDevices",
         "methods",
         "png",
+        "spacesXYZ",
         "stats",
         "stringdist"
       ],
-      "Hash": "f46404e3ecaba040aa3ae9956f0977ab"
+      "Hash": "6350088033a46c2b07438d508a47c6fb"
     },
     "cpp11": {
       "Package": "cpp11",
@@ -1190,6 +1191,13 @@
       ],
       "Hash": "6dfe8bf774944bd5595785e3229d8771"
     },
+    "ncdf4": {
+      "Package": "ncdf4",
+      "Version": "1.22",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Hash": "004b5219ae6d8ff53a3dcd2c89e56139"
+    },
     "nlme": {
       "Package": "nlme",
       "Version": "3.1-164",
@@ -1621,6 +1629,16 @@
       ],
       "Hash": "1a0cc0cec2915700e63fd0921085cf6a"
     },
+    "spacesXYZ": {
+      "Package": "spacesXYZ",
+      "Version": "1.3-0",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "R"
+      ],
+      "Hash": "507dc00e31b82a5e3932c175bbd8243c"
+    },
     "stars": {
       "Package": "stars",
       "Version": "0.6-4",
@@ -1846,9 +1864,9 @@
       "Source": "GitHub",
       "RemoteType": "github",
       "RemoteHost": "api.github.com",
-      "RemoteRepo": "tmaptools",
       "RemoteUsername": "r-tmap",
-      "RemoteRef": "HEAD",
+      "RemoteRepo": "tmaptools",
+      "RemoteRef": "master",
       "RemoteSha": "0c8b0b1c68bb20c7561715011812ca39e2085132",
       "Requirements": [
         "R",
@@ -1865,7 +1883,7 @@
         "units",
         "viridisLite"
       ],
-      "Hash": "fba3aa3f5cd962b3dcfc8ea604e2ce59"
+      "Hash": "34a5d02e45bc798874036975c416eb76"
     },
     "tzdb": {
       "Package": "tzdb",
