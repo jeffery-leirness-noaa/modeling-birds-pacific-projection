@@ -1,9 +1,9 @@
 # mount to compute target -------------------------------------------------
 azureml_core <- reticulate::import("azureml.core")
 
-subscription_id <- '737b86ee-60d4-40ce-bb2f-11f4ef6f4f8c'
-resource_group <- 'nccos-mse-biogeo-seabirds-rg'
-workspace_name <- 'nccos-mse-biogeo-seabird-ml'
+subscription_id <- "737b86ee-60d4-40ce-bb2f-11f4ef6f4f8c"
+resource_group <- "nccos-mse-biogeo-seabirds-rg"
+workspace_name <- "nccos-mse-biogeo-seabird-ml"
 
 workspace <- azureml_core$Workspace(subscription_id, resource_group, workspace_name)
 
