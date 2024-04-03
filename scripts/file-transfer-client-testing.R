@@ -25,7 +25,7 @@ ftc$upload_folder_to_blob(source_folder = local_folder)
 # create month-year summary rasters ---------------------------------------
 targets::tar_make()
 r <- targets::tar_read(test) |>
-  purrr::map(terra::unwrap) |>
+  # purrr::map(terra::unwrap) |>
   terra::rast()
 terra::plot(r)
 
