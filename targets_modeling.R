@@ -48,37 +48,5 @@ tar_option_set(
 tar_source()
 # tar_source("other_functions.R") # Source other scripts as needed.
 
-create_intervals_test <- function(r) {
-  tibble::tibble(start = time(r) |>
-                   lubridate::as_date() |>
-                   lubridate::rollbackward(roll_to_first = TRUE) |>
-                   unique(),
-                 end = lubridate::rollforward(start),
-                 label = format(start, "%Y-%m"))
-}
-create_output_test <- function(r, start, end, label) {
-  library(lubridate)
-  idx <- time(r) |>
-    lubridate::date() %within% lubridate::interval(start, end) |>
-    which()
-  x <- r[, , , idx] |>  # dplyr::slice(time, idx) can be used if x is not a stars proxy object
-    stars::st_as_stars() |>
-    terra::rast() |>
-    terra::mean()
-  names(x) <- label
-  terra::writeRaster(x, filename = file.path("output", paste0("wcra31-sst-monthly-", label, ".tif")), overwrite = TRUE)
-  file.path("output", paste0("wcra31-sst-monthly-", label, ".tif"))
-}
-
 list(
-  tar_target(wcra31_sst_daily_file, command = "data/wcra31_sst_daily_1980_2010.nc", format = "file"),
-  tar_target(wcra31_sst_daily, command = stars::read_ncdf(wcra31_sst_daily_file)),
-  tar_target(intervals, command = create_intervals_test(wcra31_sst_daily)),
-  # tar_target(int_test, command = head(intervals)),
-  tar_target(test,
-             command = create_output_test(wcra31_sst_daily, start = intervals$start, end = intervals$end, label = intervals$label),
-             pattern = map(intervals),
-             format = "file",
-             iteration = "vector"
-  )
 )
