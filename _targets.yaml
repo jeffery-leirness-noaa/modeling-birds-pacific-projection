@@ -1,6 +1,6 @@
 covariate_processing:
   script: targets_covariate_processing.R
-  store: covariate_processing
+  store: _targets_covariate_processing
 modeling:
   script: targets_modeling.R
-  store: modeling
+  store: _targets_modeling
