@@ -10,6 +10,19 @@ tar_option_set(
 # source necessary R scripts
 tar_source("R/_functions.R")
 
+# # transfer files from blob to compute
+# file_transfer <- reticulate::import_from_path("file_transfer", path = "../File-Transfer-Solution")
+# account_url <- "https://nccospacificsbdatastor.blob.core.windows.net"
+# container_name <- "raw"
+# local_folder <- "data"
+# cloud_folder <- ""
+# ftc <- file_transfer$FileTransferClient(account_url,
+#                                         container_name = container_name,
+#                                         local_folder = local_folder,
+#                                         cloud_folder = cloud_folder)
+# ftc$transfer_from_blob_to_compute()
+
+# targets
 values <- tibble::tibble(
   data_source = fs::dir_ls(fs::path("data", c("wcra31", "wcnrt", "future"))),
   output_fname = fs::path_file(data_source) |>
