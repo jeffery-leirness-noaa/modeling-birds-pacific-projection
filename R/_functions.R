@@ -1,7 +1,12 @@
 
-create_intervals_monthly <- function(file) {
-  tibble::tibble(start = stars::read_ncdf(file) |>
-                   time() |>
+create_intervals_monthly <- function(file, round_dt = FALSE) {
+  tm <- stars::read_ncdf(file) |>
+    time()
+  if (round_dt) {
+    tm <- (tm - 1) |>
+      lubridate::round_date(unit = "day")
+  }
+  tibble::tibble(start = tm |>
                    lubridate::as_date() |>
                    lubridate::rollbackward(roll_to_first = TRUE) |>
                    unique(),
@@ -9,20 +14,29 @@ create_intervals_monthly <- function(file) {
                  label = format(start, "%Y-%m"))
 }
 
-create_intervals_daily <- function(file) {
-  tibble::tibble(start = stars::read_ncdf(file) |>
-                   time() |>
+create_intervals_daily <- function(file, round_dt = FALSE) {
+  tm <- stars::read_ncdf(file) |>
+    time()
+  if (round_dt) {
+    tm <- (tm - 1) |>
+      lubridate::round_date(unit = "day")
+  }
+  tibble::tibble(start = tm |>
                    lubridate::as_date() |>
                    unique(),
                  end = start,
                  label = start)
 }
 
-create_covariate_output <- function(file, start, end, fname, label) {
+create_covariate_output <- function(file, start, end, fname, label, round_dt = FALSE) {
   library(lubridate)
   x <- stars::read_ncdf(file)
-  idx <- time(x) |>
-    lubridate::date() %within% lubridate::interval(start, end) |>
+  tm <- time(r)
+  if (round_dt) {
+    tm <- (tm - 1) |>
+      lubridate::round_date(unit = "day")
+  }
+  idx <- lubridate::date(tm) %within% lubridate::interval(start, end) |>
     which()
   r <- x[, , , idx] |>  # dplyr::slice(time, idx) can be used if x is not a stars proxy object
     stars::st_as_stars() |>
