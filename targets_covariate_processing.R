@@ -11,7 +11,7 @@ tar_option_set(
 tar_source("R/_functions.R")
 
 values <- tibble::tibble(
-  data_source = file.path("data", c("wcra31_bbv_200_daily_1980_2010.nc", "wcra31_sst_daily_1980_2010.nc")),
+  data_source = fs::dir_ls(fs::path("data", c("wcra31", "wcnrt", "future"))),
   output_fname = fs::path_file(data_source) |>
     fs::path_ext_remove() |>
     stringr::str_split(pattern = "_") |>

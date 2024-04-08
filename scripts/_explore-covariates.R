@@ -75,12 +75,12 @@ intervals <- tibble::tibble(start = time(r) |>
   dplyr::rowwise() |>
   dplyr::group_split()
 
-d <- purrr::map(intervals[1:5], \(x) foo(r, start = x$start, end = x$end, label = x$label)) |>
-  terra::rast()
+d <- purrr::map(intervals[1:5], \(x) foo(r, start = x$start, end = x$end, label = x$label))
 
-terra::plot(d)
+terra::rast(d) |>
+  terra::plot()
 
-purrr::walk(d, \(x) terra::writeRaster(x, filename = file.path("output", paste0("wcra31-sst-monthly-", names(x), ".tif"))))
+purrr::walk(d, \(x) terra::writeRaster(x, filename = file.path("output/wcra31", paste0("wcra31-sst-monthly-", names(x), ".tif"))))
 
 
 

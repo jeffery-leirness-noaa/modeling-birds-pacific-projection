@@ -32,15 +32,22 @@ ftc$transfer_from_blob_to_compute()
 account_url <- "https://nccospacificsbdatastor.blob.core.windows.net"
 container_name <- "output"
 local_folder <- "output"
-cloud_folder <- ""
+cloud_folder <- "wcra31"
 ftc <- file_transfer$FileTransferClient(account_url,
                                         container_name = container_name,
                                         local_folder = local_folder,
                                         cloud_folder = cloud_folder)
 ftc$transfer_from_blob_to_compute()
 
-
 # transfer files from compute to blob
+account_url <- "https://nccospacificsbdatastor.blob.core.windows.net"
+container_name <- "output"
+local_folder <- "output/wcra31"
+cloud_folder <- "wcra31"
+ftc <- file_transfer$FileTransferClient(account_url,
+                                        container_name = container_name,
+                                        local_folder = local_folder,
+                                        cloud_folder = cloud_folder)
 ftc$upload_folder_to_blob(source_folder = local_folder, destination_folder = cloud_folder)
 
 
