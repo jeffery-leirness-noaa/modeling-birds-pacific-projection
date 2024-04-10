@@ -4,7 +4,7 @@ library(targets)
 # set target options
 tar_option_set(
   format = "qs",
-  controller = crew::crew_controller_local(workers = parallel::detectCores() - 1, seconds_idle = 5)
+  controller = crew::crew_controller_local(workers = parallel::detectCores() - 1, seconds_idle = 10)
 )
 
 # source necessary R scripts
