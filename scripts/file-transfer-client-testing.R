@@ -103,3 +103,19 @@ ftc$upload_folder_to_blob(source_folder = local_folder, destination_folder = clo
 # delete files from compute
 fl <- fs::dir_ls("_targets", recurse = TRUE)
 fs::file_delete(fl)
+
+
+# another method using (outdated) azuremlsdk package
+ws <- azuremlsdk::get_workspace(name = "nccos-mse-biogeo-seabird-ml",
+                                subscription_id = "737b86ee-60d4-40ce-bb2f-11f4ef6f4f8c",
+                                resource_group = "nccos-mse-biogeo-seabirds-rg")
+
+ds <- azuremlsdk::get_datastore(ws, datastore_name = "datastor_raw")
+azuremlsdk::download_from_datastore(ds, target_path = "output", prefix = "species-codes.csv")
+
+ds <- azuremlsdk::get_datastore(ws, datastore_name = "workspacefilestore")
+azuremlsdk::mount_file_dataset(ds)
+
+azuremlsdk::data_path(ds)
+
+azuremlsdk::get_default_datastore(ws)
