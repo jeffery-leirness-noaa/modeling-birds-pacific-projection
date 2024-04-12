@@ -22,7 +22,8 @@ simple_model_func <- function(sp, dayofyear_k = -1, mgcv_gamma = 1, basis = "tp"
 }
 
 list(
-  tar_target(atlantic_data_file, command = "data/segmented_data_analysis_2023-02-15.rds", format = "file"),
+  tar_target(data_path, command = "data/segmented-data.csv", format = "file"),
+  tar_target(dat, command = prepare_data(data_path)),
   tar_target(mods, command = tibble::tibble(sp = c("atpu", "blki", "coei", "noga", "rtlo"))),
   tar_target(simple_model,
              command = simple_model_func(sp = mods$sp, dat_fn = atlantic_data_file),
