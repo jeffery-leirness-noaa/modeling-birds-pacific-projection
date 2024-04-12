@@ -1,4 +1,3 @@
-
 create_intervals_monthly <- function(file, round_dt = FALSE) {
   tm <- stars::read_ncdf(file) |>
     time()
@@ -44,7 +43,7 @@ create_covariate_output <- function(file, start, end, fname, label, round_dt = F
   if (terra::nlyr(r) > 1) {
     r <- terra::mean(r)
   }
-  # terra::crs(r) <- "epsg:4326"
+  terra::crs(r) <- "epsg:4326"
   names(r) <- label
   terra::time(r) <- NULL
   terra::writeRaster(r, filename = file.path("output", paste0(fname, "-", label, ".tif")), overwrite = TRUE)
@@ -54,4 +53,13 @@ create_covariate_output <- function(file, start, end, fname, label, round_dt = F
 process_covariate_data <- function(file, fname) {
   int_monthly <- create_intervals_monthly(file)
   purrr::map(int_monthly, \(x) create_covariate_output(file, start = x$start, end = x$end, fname = fname, label = x$label))
+}
+
+
+prepare_data <- function(path) {
+  data.table::fread(path) |>
+    tibble::as_tibble(.name_repair = janitor::make_clean_names) |>
+    dplyr::mutate(date = lubridate::as_date(paste(year, month, day, sep = "-")),
+                  lon = lon + 180) |>
+    sf::st_as_sf(coords = c("lon", "lat"), crs = "WGS84")
 }
