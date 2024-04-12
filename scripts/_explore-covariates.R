@@ -1,18 +1,58 @@
 # unzip("wcra31_daily_1980-2010.zip", exdir = "wcra31_daily_1980-2010")
 # unzip("WCNRT.zip", exdir = "WCNRT")
 
-fl <- "data/wcra31_sst_daily_1980_2010.nc"
+fl <- "data/future/gfdl_sst_daily_roms_1980_2100.nc"
 
 # this seems to work
 r <- raster::brick(fl)
 raster::plot(r[[1]])
 
 r <- ncdf4::nc_open(fl)
-r <- ncdf4::ncvar_get(r, "sst")
+sst <- ncdf4::ncvar_get(r, "sst")
+lon <- ncdf4::ncvar_get(r, "lon_rho")
+lat <- ncdf4::ncvar_get(r, "lat_rho")
+time <- ncdf4::ncvar_get(r, "time")
+tunits <- ncdf4::ncatt_get(r, "time", "units")
+time <- CFtime::CFtime(tunits$value, offsets = time) |>
+  CFtime::CFtimestamp() |>
+  lubridate::as_datetime()
+
+
 
 
 # perhaps the most promising
 r <- stars::read_ncdf(fl)
+
+
+nc <- ncdf4::nc_open(fl)
+sst <- ncdf4::ncvar_get(nc, "sst")
+lon <- ncdf4::ncvar_get(nc, "lon_rho")
+lat <- ncdf4::ncvar_get(nc, "lat_rho")
+time <- ncdf4::ncvar_get(nc, "time")
+tunits <- ncdf4::ncatt_get(nc, "time", "units")
+time <- CFtime::CFtime(tunits$value, offsets = time) |>
+  CFtime::CFtimestamp() |>
+  lubridate::as_datetime()
+r <- st_as_stars(list(sst = sst), dimensions = st_dimensions(x = round(lon[, 1], 2), y = round(lat[1, ], 2),
+                                                             time = time)) |>
+  terra::rast()
+
+
+
+attr(r, "dimensions")[["xi_rho"]]$delta <- 0.1
+attr(r, "dimensions")[["xi_rho"]]$offset <- min(lon)
+
+attr(r, "dimensions")[["eta_rho"]]$delta <- 0.1
+attr(r, "dimensions")[["eta_rho"]]$offset <- min(lat)
+
+r <- r[, , , 1] |>
+  stars::st_as_stars() |>
+  terra::rast()
+
+
+r <- stars::st_set_dimensions(r, which = "xi_rho", values = lon[, 1], names = "lon")
+r <- stars::st_set_dimensions(r, which = "eta_rho", values = lat[1, ], names = "lat")
+
 idx <- time(r) |>
   lubridate::date() == "1999-01-25"
 r[, , , which(idx)] |>
