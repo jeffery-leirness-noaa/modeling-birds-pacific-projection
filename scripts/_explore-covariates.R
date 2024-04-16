@@ -1,7 +1,61 @@
 # unzip("wcra31_daily_1980-2010.zip", exdir = "wcra31_daily_1980-2010")
 # unzip("WCNRT.zip", exdir = "WCNRT")
 
-fl <- "data/future/gfdl_sst_daily_roms_1980_2100.nc"
+fl <- "data/wcra31/wcra31_sst_daily_1980_2010.nc"
+
+source("R/_functions.R")
+
+foo <- function(.data, fl, start, end) {
+  r <- process_covariate_file(fl, start = start, end = end, label = start, round_dt = TRUE) |>
+    terra::unwrap()
+  terra::extract(r, .data, ID = FALSE)[, 1]
+}
+
+dat <- prepare_data("data/segmented-data.csv") |>
+  dplyr::mutate(yrmon = lubridate::floor_date(date, "month"))
+dat_80 <- dat |>
+  dplyr::filter(date < lubridate::as_date("2011-01-01")) |>
+  dplyr::group_by(yrmon) |>
+  dplyr::mutate(sst = foo(geometry |> terra::vect(),
+                          fl = fl,
+                          start = unique(yrmon),
+                          end = lubridate::rollforward(unique(yrmon))))
+
+r <- process_covariate_file(fl, start = "1990-01-01", end = "1990-01-01", label = "1990-01-01", round_dt = TRUE) |>
+  terra::unwrap()
+temp <- dat_80 |> dplyr::filter(is.na(sst))
+# mapview::mapview(raster::raster(r), na.color = "transparent", maxpixels = terra::ncell(bathy)) +
+mapview::mapview(r, na.color = "transparent") +
+mapview::mapview(temp, alpha.regions = 0.5, label = "yrmon", layer.name = "sst")
+
+tmap::tm_shape()
+
+tmap::tmap_mode("view")
+temp |>
+  dplyr::filter(date == "1999-08-16") |>
+  tmap::tm_shape() + tmap::tm_dots() +
+  tmap::tm_shape(r) + tmap::tm_raster("1990-01-01", style = "cont", palette = "viridis")
+
+
+temp |>
+  dplyr::filter(date == "1999-08-16") |>
+  sf::st_geometry() |>
+  plot()
+terra::plot(r, add = TRUE)
+
+
+start <- sort(unique(dat$yrmon))[1]
+end <- lubridate::rollforward(start)
+r <- process_covariate_file(fl, start = start, end = end, label = start, round_dt = TRUE) |>
+  terra::unwrap()
+
+dat$sst <- NA
+dat$sst[dat$yrmon == start] <- terra::extract(r, dplyr::filter(dat, yrmon == start), ID = FALSE)[, 1]
+
+terra::plot(r)
+terra::plot(v, add = TRUE)
+
+
 
 # this seems to work
 r <- raster::brick(fl)
@@ -18,14 +72,30 @@ time <- CFtime::CFtime(tunits$value, offsets = time) |>
   lubridate::as_datetime()
 
 
+r <- tidync::tidync(fl)
+ck <- r |> tidync::activate("D0,D1") |> tidync::hyper_tbl_cube()
+
+lon <- tidync::tidync(fl) |>
+  tidync::activate("lon_rho") |>
+  tidync::hyper_array()
+lon <- lon$lon_rho
+
+sst <- tidync::tidync(fl) |>
+  tidync::activate("sst") |>
+  tidync::hyper_filter(time = index < 2) |>
+  tidync::hyper_tibble()
 
 
-# perhaps the most promising
-r <- stars::read_ncdf(fl)
-
+# use tidync to get var and lat/lon
+# use ncdf4 to get time
+lon <- tidync::tidync(fl) |>
+  tidync::activate("lon_rho") |>
+  tidync::hyper_array()
+lat <- tidync::tidync(fl) |>
+  tidync::activate("lat_rho") |>
+  tidync::hyper_array()
 
 nc <- ncdf4::nc_open(fl)
-sst <- ncdf4::ncvar_get(nc, "sst")
 lon <- ncdf4::ncvar_get(nc, "lon_rho")
 lat <- ncdf4::ncvar_get(nc, "lat_rho")
 time <- ncdf4::ncvar_get(nc, "time")
@@ -33,8 +103,42 @@ tunits <- ncdf4::ncatt_get(nc, "time", "units")
 time <- CFtime::CFtime(tunits$value, offsets = time) |>
   CFtime::CFtimestamp() |>
   lubridate::as_datetime()
-r <- st_as_stars(list(sst = sst), dimensions = st_dimensions(x = round(lon[, 1], 2), y = round(lat[1, ], 2),
-                                                             time = time)) |>
+ncdf4::nc_close(nc)
+
+
+start <- lubridate::as_date("2012-01-01")
+end <- lubridate::as_date("2012-01-31")
+idx <- which(time >= start & time <= end)
+sst <- tidync::tidync(fl) |>
+  tidync::activate("sst") |>
+  tidync::hyper_filter(time = index %in% idx) |>
+  tidync::hyper_tibble()
+
+
+
+# perhaps the most promising
+r <- stars::read_ncdf(fl)
+
+
+nc <- ncdf4::nc_open(fl)
+lon <- ncdf4::ncvar_get(nc, "lon_rho")
+lat <- ncdf4::ncvar_get(nc, "lat_rho")
+time <- ncdf4::ncvar_get(nc, "time")
+tunits <- ncdf4::ncatt_get(nc, "time", "units")
+time <- CFtime::CFtime(tunits$value, offsets = time) |>
+  CFtime::CFtimestamp() |>
+  lubridate::as_datetime()
+ncdf4::nc_close(nc)
+
+start <- lubridate::as_date("2012-01-01")
+end <- lubridate::as_date("2012-01-31")
+idx <- which(time >= start & time <= end)
+r <- stars::read_ncdf(fl)
+sst <- r[, , , idx] |>
+  st_as_stars()
+
+r <- st_as_stars(list(sst = sst$sst), dimensions = st_dimensions(x = round(lon[, 1], 2), y = round(lat[1, ], 2),
+                                                                 time = time[idx])) |>
   terra::rast()
 
 
