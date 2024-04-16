@@ -3,6 +3,7 @@ library(targets)
 
 # set target options
 tar_option_set(
+  packages = c("qs"),
   format = "qs",
   controller = crew::crew_controller_local(workers = parallel::detectCores() - 1, seconds_idle = 10)
 )
@@ -34,15 +35,15 @@ targets <- tarchetypes::tar_map(
   values = values,
   names = output_fname,
   tar_target(file, command = data_source, format = "file", deployment = "main"),
-  tar_target(int_daily, command = create_intervals_daily(file, round_dt = TRUE)),
+  tar_target(int_monthly, command = create_intervals_monthly(file, round_dt = TRUE)),
   tar_target(covariates,
              command = create_covariate_output(file,
-                                               start = int_daily$start,
-                                               end = int_daily$end,
-                                               fname = paste0(output_fname, "-daily"),
-                                               label = int_daily$label,
+                                               start = int_monthly$start,
+                                               end = int_monthly$end,
+                                               fname = paste0(output_fname, "-monthly"),
+                                               label = int_monthly$label,
                                                round_dt = TRUE),
-             pattern = map(int_daily),
+             pattern = map(int_monthly),
              format = "file",
              iteration = "vector"
   )
