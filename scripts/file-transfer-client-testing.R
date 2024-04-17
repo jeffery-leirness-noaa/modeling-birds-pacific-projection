@@ -7,7 +7,7 @@ file_transfer <- reticulate::import_from_path("file_transfer", path = "../File-T
 account_url <- "https://nccospacificsbdatastor.blob.core.windows.net"
 container_name <- "raw"
 local_folder <- "data"
-cloud_folder <- ""
+cloud_folder <- "wcnrt"
 
 ftc <- file_transfer$FileTransferClient(account_url,
                                         container_name = container_name,
