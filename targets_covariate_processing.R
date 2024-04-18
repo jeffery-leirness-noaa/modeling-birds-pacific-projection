@@ -24,13 +24,14 @@ tar_source("R/_functions.R")
 # ftc$transfer_from_blob_to_compute()
 
 # targets
-values <- tibble::tibble(
-  data_source = fs::dir_ls(fs::path("data", c("wcra31", "wcnrt", "future"))),
-  output_fname = fs::path_file(data_source) |>
-    fs::path_ext_remove() |>
-    stringr::str_split(pattern = "_") |>
-    purrr::map_vec(\(x) paste(x[1:2], collapse = "-"))
-)
+data_source <- fs::path("data", c("wcra31", "wcnrt", "future")) |>
+  fs::dir_ls()
+output_fname <- fs::path_file(data_source) |>
+  fs::path_ext_remove() |>
+  stringr::str_split(pattern = "_") |>
+  purrr::map_vec(\(x) paste(x[1:2], collapse = "-"))
+values <- tibble::tibble(data_source = data_source,
+                         output_fname = output_fname)
 targets <- tarchetypes::tar_map(
   values = values,
   names = output_fname,
