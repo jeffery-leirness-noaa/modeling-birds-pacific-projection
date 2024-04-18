@@ -32,7 +32,8 @@ else:
 if dir_env is None:
   environment = None
 else:
-  environment = Environment(build = BuildContext(path = dir_env))
+  # environment = Environment(build = BuildContext(path = dir_env))
+  environment = "azureml://registries/nccos-registry-ml/environments/nccos-leirness-modeling-birds-pacific-projection/versions/1"
 job = command(
   code = code,
   command = rscript_command,
