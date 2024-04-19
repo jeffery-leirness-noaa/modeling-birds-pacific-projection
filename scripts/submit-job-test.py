@@ -3,7 +3,7 @@ code = "./scripts"
 # rscript_command = "Rscript test.R"
 rscript_command = "Rscript test.R --dir_out=${{outputs.dir_out}}"
 # dir_out = None
-dir_out = "azureml://datastores/workspaceblobstore/paths/"
+dir_out = "azureml://datastores/datastor_processing/paths"
 # dir_env = "./env"
 environment = "azureml://registries/nccos-registry-ml/environments/nccos-leirness-modeling-birds-pacific-projection/versions/2"
 compute = "nccos-vm-leirness-e4dsv4"
