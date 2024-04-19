@@ -19,15 +19,15 @@ from azure.identity import DefaultAzureCredential
 
 # Enter details of your AML workspace
 subscription_id = "737b86ee-60d4-40ce-bb2f-11f4ef6f4f8c"
-resource_group = "nccos-mse-biogeo-seabirds-rg"
-workspace = "nccos-mse-biogeo-seabird-ml"
+resource_group_name = "nccos-mse-biogeo-seabirds-rg"
+workspace_name = "nccos-mse-biogeo-seabird-ml"
 
 # get a handle to the workspace
 ml_client = MLClient(
   credential = DefaultAzureCredential(), 
   subscription_id = subscription_id, 
-  resource_group_name = resource_group, 
-  workspace_name = workspace
+  resource_group_name = resource_group_name, 
+  workspace_name = workspace_name
 )
 
 # configure the command
