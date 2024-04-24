@@ -98,3 +98,16 @@ prepare_data <- function(path) {
     dplyr::mutate(date = lubridate::as_date(paste(year, month, day, sep = "-"))) |>
     sf::st_as_sf(coords = c("lon", "lat"), crs = "WGS84")
 }
+
+
+sample_data <- function(path, ..., n = NULL, prop = NULL) {
+  if (!is.null(n)) {
+    readr::read_csv(path, show_col_types = FALSE) |>
+      dplyr::group_by(...) |>
+      dplyr::slice_sample(n = n)
+  } else if (!is.null(prop)) {
+    readr::read_csv(path, show_col_types = FALSE) |>
+      dplyr::group_by(...) |>
+      dplyr::slice_sample(prop = prop)
+  }
+}
