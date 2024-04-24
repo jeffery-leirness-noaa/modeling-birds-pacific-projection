@@ -1,0 +1,8 @@
+default:
+  dataset: "data/segmented-data.csv"
+
+dev:
+  dataset: "data/segmented-data-dev.csv"
+
+test:
+  dataset: "data/segmented-data-test.csv"
