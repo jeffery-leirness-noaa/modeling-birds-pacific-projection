@@ -7,5 +7,4 @@
 *.amltmp
 *.amltemp
 *.amlsas
-notes/
-_targets/
+_targets*/
