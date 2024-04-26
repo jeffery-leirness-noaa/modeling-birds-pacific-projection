@@ -1,19 +1,3 @@
-
-transfer_files_blob <- function(container_name, local_folder, cloud_folder, type, account_url = "https://nccospacificsbdatastor.blob.core.windows.net") {
-  file_transfer <- reticulate::import_from_path("file_transfer")
-  ftc <- file_transfer$FileTransferClient(account_url,
-                                          container_name = container_name,
-                                          local_folder = local_folder,
-                                          cloud_folder = cloud_folder)
-  if (type == "download") {
-    # transfer files from blob to compute
-    ftc$transfer_from_blob_to_compute()
-  } else if (type == "upload") {
-    # transfer files from compute to blob
-    ftc$upload_folder_to_blob(source_folder = local_folder, destination_folder = cloud_folder)
-  }
-}
-
 create_intervals_monthly <- function(file, round_dt = FALSE) {
   tm <- stars::read_ncdf(file) |>
     time()
@@ -53,36 +37,55 @@ process_covariate_file <- function(file, start, end, label, round_dt = FALSE) {
   }
   idx <- lubridate::date(tm) %within% lubridate::interval(start, end) |>
     which()
-  r <- x[, , , idx] |>  # dplyr::slice(time, idx) can be used if x is not a stars proxy object
-    stars::st_as_stars()
+  if (length(idx) > 0) {
 
-  # fix lat/lon values that were incorrectly stored in netcdf file --------
-  nc <- ncdf4::nc_open(file)
-  lon <- ncdf4::ncvar_get(nc, "lon_rho")
-  lat <- ncdf4::ncvar_get(nc, "lat_rho")
-  ncdf4::nc_close(nc)
-  r <- stars::st_as_stars(list(sst = r[[1]]),
-                          dimensions = stars::st_dimensions(x = round(lon[, 1], 2),
-                                                            y = round(lat[1, ], 2),
-                                                            time = tm[idx])) |>
-    terra::rast()
-  # -----------------------------------------------------------------------
+    r <- x[, , , idx] |>  # dplyr::slice(time, idx) can be used if x is not a stars proxy object
+      stars::st_as_stars()
 
-  if (terra::nlyr(r) > 1) {
-    r <- terra::mean(r)
+    # fix lat/lon values that were incorrectly stored in netcdf file --------
+    nc <- ncdf4::nc_open(file)
+    lon <- ncdf4::ncvar_get(nc, "lon_rho")
+    lat <- ncdf4::ncvar_get(nc, "lat_rho")
+    ncdf4::nc_close(nc)
+    r <- stars::st_as_stars(list(sst = r[[1]]),
+                            dimensions = stars::st_dimensions(x = round(lon[, 1], 2),
+                                                              y = round(lat[1, ], 2),
+                                                              time = tm[idx])) |>
+      terra::rast()
+    # -----------------------------------------------------------------------
+
+    if (terra::nlyr(r) > 1) {
+      r <- terra::mean(r)
+    } else {
+      terra::time(r) <- NULL
+    }
+    terra::crs(r) <- "epsg:4326"
+    names(r) <- label
+    terra::wrap(r)
   } else {
-    terra::time(r) <- NULL
+    NA
   }
-  terra::crs(r) <- "epsg:4326"
-  names(r) <- label
-  terra::wrap(r)
 }
 
+extract_covariate_data <- function(.data, file, start, end) {
+  r <- process_covariate_file(file, start = start, end = end, label = start, round_dt = TRUE)
+  if (isa(r, "PackedSpatRaster")) {
+    terra::unwrap(r) |>
+      terra::extract(y = .data, ID = FALSE) |>
+      dplyr::pull()
+  } else {
+    r
+  }
+}
+
+
 create_covariate_output <- function(file, start, end, fname, label, round_dt = FALSE) {
-  r <- process_covariate_file(file, start = start, end = end, label = label, round_dt = round_dt) |>
-    terra::unwrap()
-  terra::writeRaster(r, filename = file.path("output", paste0(fname, "-", label, ".tif")), overwrite = TRUE)
-  file.path("output", paste0(fname, "-", label, ".tif"))
+  r <- process_covariate_file(file, start = start, end = end, label = label, round_dt = round_dt)
+  if (isa(r, "PackedSpatRaster")) {
+    r <- terra::unwrap(r)
+    terra::writeRaster(r, filename = file.path("output", paste0(fname, "-", label, ".tif")), overwrite = TRUE)
+    file.path("output", paste0(fname, "-", label, ".tif"))
+  }
 }
 
 process_covariate_data <- function(file, fname) {
