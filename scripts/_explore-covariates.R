@@ -2,31 +2,49 @@
 # unzip("WCNRT.zip", exdir = "WCNRT")
 
 fl <- "data/wcra31/wcra31_sst_daily_1980_2010.nc"
+nm <- fs::path_file(fl) |>
+  stringr::str_split(pattern = "_") |>
+  purrr::map_vec(.f = \(x) paste(x[1:2], collapse = "_"))
 
 source("R/_functions.R")
 
-foo <- function(.data, fl, start, end) {
-  r <- process_covariate_file(fl, start = start, end = end, label = start, round_dt = TRUE) |>
-    terra::unwrap()
-  terra::extract(r, .data, ID = FALSE)[, 1]
-}
-
 dat <- prepare_data("data/segmented-data.csv") |>
-  dplyr::mutate(yrmon = lubridate::floor_date(date, "month"))
-dat_80 <- dat |>
-  dplyr::filter(date < lubridate::as_date("2011-01-01")) |>
+  dplyr::mutate(yrmon = lubridate::floor_date(date, "month")) |>
   dplyr::group_by(yrmon) |>
-  dplyr::mutate(sst = foo(geometry |> terra::vect(),
-                          fl = fl,
-                          start = unique(yrmon),
-                          end = lubridate::rollforward(unique(yrmon))))
+  dplyr::mutate("{nm}" := extract_covariate_data(geometry |> terra::vect(),
+                                                 file = fl,
+                                                 start = unique(yrmon),
+                                                 end = lubridate::rollforward(unique(yrmon))))
+dat |>
+  sf::st_drop_geometry() |>
+  dplyr::summarise(sst = mean(wcra31_sst, na.rm = TRUE)) |>
+  print(n = Inf)
+
+
+fl <- "data/wcnrt/wcnrt_sst_daily_20110102_20240117.nc"
+nm <- fs::path_file(fl) |>
+  stringr::str_split(pattern = "_") |>
+  purrr::map_vec(.f = \(x) paste(x[1:2], collapse = "_"))
+dat <- dat |>
+  dplyr::mutate("{nm}" := extract_covariate_data(geometry |> terra::vect(),
+                                                 file = fl,
+                                                 start = unique(yrmon),
+                                                 end = lubridate::rollforward(unique(yrmon))))
+dat |>
+  sf::st_drop_geometry() |>
+  dplyr::summarise(wcra31_sst = mean(wcra31_sst, na.rm = TRUE), wcnrt_sst = mean(wcnrt_sst, na.rm = TRUE)) |>
+  print(n = Inf)
+
+
+
+
 
 r <- process_covariate_file(fl, start = "1990-01-01", end = "1990-01-01", label = "1990-01-01", round_dt = TRUE) |>
   terra::unwrap()
 temp <- dat_80 |> dplyr::filter(is.na(sst))
 # mapview::mapview(raster::raster(r), na.color = "transparent", maxpixels = terra::ncell(bathy)) +
 mapview::mapview(r, na.color = "transparent") +
-mapview::mapview(temp, alpha.regions = 0.5, label = "yrmon", layer.name = "sst")
+  mapview::mapview(temp, alpha.regions = 0.5, label = "yrmon", layer.name = "sst")
 
 tmap::tm_shape()
 
