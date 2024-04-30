@@ -70,7 +70,7 @@ process_covariate_file <- function(file, start, end, label, round_dt = FALSE) {
   }
 }
 
-extract_covariate_data <- function(x, at, time_column, name, round_dt = FALSE) {
+extract_covariate_data <- function(x, at, time_column, aggregate_by = NULL, name, round_dt = FALSE) {
 
   r <- stars::read_ncdf(x, proxy = FALSE)
   tm <- time(r)
@@ -107,12 +107,18 @@ extract_covariate_data <- function(x, at, time_column, name, round_dt = FALSE) {
   r <- stars::st_as_stars(setNames(list(r[[1]]), name),
                           dimensions = stars::st_dimensions(x = lon[, 1],
                                                             y = lat[1, ],
-                                                            time = tm)) |>
-    aggregate(by = "months", FUN = mean)
+                                                            time = tm))
   sf::st_crs(r) <- "WGS84"
+
+  if (!is.null(aggregate_by)) {
+    r <- aggregate(r, by = aggregate_by, FUN = mean)
+    if (aggregate_by == "months") {
+      at <- at |> dplyr::mutate("{time_column}" := lubridate::floor_date(.data[[time_column]], "month"))
+    }
+  }
+
   stars::st_extract(r, at = at, time_column = time_column)
 }
-
 
 create_covariate_output <- function(file, start, end, fname, label, round_dt = FALSE) {
   r <- process_covariate_file(file, start = start, end = end, label = label, round_dt = round_dt)
@@ -132,9 +138,9 @@ process_covariate_data <- function(file, fname) {
 prepare_data <- function(path) {
   data.table::fread(path) |>
     tibble::as_tibble(.name_repair = janitor::make_clean_names) |>
-    dplyr::mutate(date = lubridate::as_date(paste(year, month, day, sep = "-"))) |>
+    dplyr::mutate(date = lubridate::as_date(paste(year, month, day, sep = "-")),
+                  .before = dplyr::everything()) |>
     dplyr::select(!c(year, month, day, season, chla:index_pdo_lag12)) |>
-    dplyr::relocate(date) |>
     sf::st_as_sf(coords = c("lon", "lat"), crs = "WGS84")
 }
 
