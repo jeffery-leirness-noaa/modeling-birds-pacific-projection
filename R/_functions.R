@@ -91,7 +91,7 @@ extract_covariate_data <- function(x, at, time_column, round_dt = FALSE) {
                           dimensions = stars::st_dimensions(x = round(lon[, 1], 2),
                                                             y = round(lat[1, ], 2),
                                                             time = tm)) |>
-    aggregate(r, by = "months", FUN = mean)
+    aggregate(by = "months", FUN = mean)
   sf::st_crs(r) <- "WGS84"
   stars::st_extract(r, at = at, time_column = time_column)
 }

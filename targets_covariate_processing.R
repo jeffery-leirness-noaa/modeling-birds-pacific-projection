@@ -47,7 +47,7 @@ list(
           names = output_fname,
           tar_target(file, command = data_source, format = "file"),
           tar_target(extract_covs,
-                     command = extract_covariate_data(data_source,
+                     command = extract_covariate_data(file,
                                                       at = data,
                                                       time_column = "yrmon",
                                                       round_dt = TRUE)))
