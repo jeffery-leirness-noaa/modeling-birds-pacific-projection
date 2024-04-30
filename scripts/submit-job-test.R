@@ -1,7 +1,7 @@
 # set testing parameters
 code <- "./scripts"
-rscript_command <- "Rscript test.R"
-dir_out <- NULL
+rscript_command <- "Rscript test.R --dir_out=${{outputs.dir_out}}"
+dir_out <- "azureml://datastores/datastor_processing/paths"
 dir_env <- "./env"
 compute <- "nccos-vm-leirness-e4dsv4"
 experiment_name <- "r-data-access-testing"

@@ -1,12 +1,15 @@
 # set testing parameters
-code = "./scripts"
+code = "."
 # rscript_command = "Rscript test.R"
-rscript_command = "Rscript test.R --dir_out=${{outputs.dir_out}}"
+# rscript_command = "Rscript scripts/test.R --dir_out=${{outputs.dir_out}}"
+rscript_command = "Rscript scripts/test.R --dir_in=${{inputs.dir_in}} --dir_out=${{outputs.dir_out}}"
+# dir_in = None
+dir_in = "azureml://datastores/datastor_raw/paths/"
 # dir_out = None
-dir_out = "azureml://datastores/datastor_processing/paths"
+dir_out = "azureml://datastores/datastor_processing/paths/"
 # dir_env = "./env"
 environment = "azureml://registries/nccos-registry-ml/environments/nccos-leirness-modeling-birds-pacific-projection/versions/2"
-compute = "nccos-vm-cluster-ds2"
+compute = "nccos-vm-leirness-e4dsv4"
 experiment_name = "r-data-access-testing"
 display_name = "r-data-access-testing-exp-1"
 description = "Test data access from RStudio on compute instance."
@@ -31,6 +34,10 @@ ml_client = MLClient(
 )
 
 # configure the command
+if dir_in is None:
+  inputs = None
+else:
+  inputs = {"dir_in": Input(type = "uri_folder", path = dir_in, mode = "ro_mount")}
 if dir_out is None:
   outputs = None
 else:
@@ -43,6 +50,7 @@ else:
 job = command(
   code = code,
   command = rscript_command,
+  inputs = inputs,
   outputs = outputs,
   environment = environment,
   compute = compute,

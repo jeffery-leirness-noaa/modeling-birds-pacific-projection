@@ -1,5 +1,9 @@
 .ipynb_aml_checkpoints/
 *.amltmp
 *.amltemp
-renv/
+.Rproj.user
 .Rprofile
+data/
+env/
+output/
+renv/
