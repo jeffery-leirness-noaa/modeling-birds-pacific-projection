@@ -27,31 +27,39 @@ tar_source("R/_functions.R")
 # targets
 data_source <- fs::path("data", c("wcra31", "wcnrt")) |>
   fs::dir_ls()
-output_fname <- fs::path_file(data_source) |>
+var_name <- fs::path_file(data_source) |>
   fs::path_ext_remove() |>
   stringr::str_split(pattern = "_") |>
-  purrr::map_vec(.f = \(x) paste(x[1:2], collapse = "-"))
+  purrr::map_vec(.f = \(x) paste(x[1:2], collapse = "_"))
 values <- tibble::tibble(data_source = data_source,
-                         output_fname = output_fname)
-values <- values[c(5, 14), ]
+                         var_name = var_name)
+# values <- values[c(5, 14), ]
 
 
-list(
-  tar_target(data_path, command = "data/segmented-data.csv", format = "file",
-             deployment = "main"),
-  tar_target(data,
-             command = prepare_data(data_path) |>
-               dplyr::mutate(yrmon = lubridate::floor_date(date, "month")),
-             deployment = "main"),
-  tar_map(values = values,
-          names = output_fname,
-          tar_target(file, command = data_source, format = "file"),
-          tar_target(extract_covs,
-                     command = extract_covariate_data(file,
-                                                      at = data,
-                                                      time_column = "yrmon",
-                                                      round_dt = TRUE)))
-)
+target1 <- tar_target(data_path,
+                      command = "data/segmented-data.csv",
+                      format = "file",
+                      deployment = "main")
+target2 <- tar_target(data,
+                      command = prepare_data(data_path) |>
+                        dplyr::mutate(yrmon = lubridate::floor_date(date, "month")),
+                      deployment = "main")
+target3 <- tar_map(values = values,
+                   names = var_name,
+                   tar_target(file, command = data_source, format = "file"),
+                   tar_target(extract,
+                              command = extract_covariate_data(file,
+                                                               at = data,
+                                                               time_column = "yrmon",
+                                                               name = var_name,
+                                                               round_dt = TRUE) |>
+                                dplyr::select(var_name) |>
+                                sf::st_drop_geometry()))
+target4 <- tar_combine(data_full,
+                       target3[["extract"]],
+                       command = dplyr::bind_cols(data, !!!.x) |>
+                         dplyr::select(!yrmon))
+list(target1, target2, target3, target4)
 
 
 
