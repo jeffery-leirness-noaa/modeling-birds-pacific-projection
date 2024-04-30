@@ -82,14 +82,31 @@ extract_covariate_data <- function(x, at, time_column, name, round_dt = FALSE) {
   }
 
   # fix lat/lon values that were incorrectly stored in netcdf file --------
-  nc <- ncdf4::nc_open(x)
-  lon <- ncdf4::ncvar_get(nc, "lon_rho")
-  lat <- ncdf4::ncvar_get(nc, "lat_rho")
-  ncdf4::nc_close(nc)
+  err <- c("data/wcra31/wcra31_curl_daily_1980_2010.nc",
+           "data/wcra31/wcra31_sustr_daily_1980_2010.nc",
+           "data/wcra31/wcra31_su_daily_1980_2010.nc",
+           "data/wcra31/wcra31_svstr_daily_1980_2010.nc",
+           "data/wcra31/wcra31_sv_daily_1980_2010.nc",
+           "data/wcnrt/wcnrt_curl_daily_20110102_20240117.nc",
+           "data/wcnrt/wcnrt_sustr_daily_20110102_20240117.nc",
+           "data/wcnrt/wcnrt_su_daily_20110102_20240117.nc",
+           "data/wcnrt/wcnrt_svstr_daily_20110102_20240117.nc",
+           "data/wcnrt/wcnrt_sv_daily_20110102_20240117.nc")
+  if (x %in% err) {
+    nc <- ncdf4::nc_open("data/wcnrt/wcnrt_sst_daily_20110102_20240117.nc")
+    lon <- ncdf4::ncvar_get(nc, "lon_rho")
+    lat <- ncdf4::ncvar_get(nc, "lat_rho")
+    ncdf4::nc_close(nc)
+  } else {
+    nc <- ncdf4::nc_open(x)
+    lon <- ncdf4::ncvar_get(nc, "lon_rho")
+    lat <- ncdf4::ncvar_get(nc, "lat_rho")
+    ncdf4::nc_close(nc)
+  }
 
   r <- stars::st_as_stars(setNames(list(r[[1]]), name),
-                          dimensions = stars::st_dimensions(x = round(lon[, 1], 2),
-                                                            y = round(lat[1, ], 2),
+                          dimensions = stars::st_dimensions(x = lon[, 1],
+                                                            y = lat[1, ],
                                                             time = tm)) |>
     aggregate(by = "months", FUN = mean)
   sf::st_crs(r) <- "WGS84"
@@ -115,8 +132,9 @@ process_covariate_data <- function(file, fname) {
 prepare_data <- function(path) {
   data.table::fread(path) |>
     tibble::as_tibble(.name_repair = janitor::make_clean_names) |>
-    dplyr::select(!(chla:index_pdo_lag12)) |>
     dplyr::mutate(date = lubridate::as_date(paste(year, month, day, sep = "-"))) |>
+    dplyr::select(!c(year, month, day, season, chla:index_pdo_lag12)) |>
+    dplyr::relocate(date) |>
     sf::st_as_sf(coords = c("lon", "lat"), crs = "WGS84")
 }
 
