@@ -37,6 +37,94 @@ dat |>
 
 
 
+fl <- "data/wcra31/wcra31_sst_daily_1980_2010.nc"
+nm <- fs::path_file(fl) |>
+  stringr::str_split(pattern = "_") |>
+  purrr::map_vec(.f = \(x) paste(x[1:2], collapse = "_"))
+dat <- prepare_data("data/segmented-data.csv") |>
+  dplyr::mutate(yrmon = lubridate::floor_date(date, "month")) |>
+  dplyr::group_by(yrmon) |>
+  dplyr::mutate("{nm}" := extract_covariate_data(geometry |> terra::vect(),
+                                                 file = fl,
+                                                 start = unique(yrmon),
+                                                 end = lubridate::rollforward(unique(yrmon))))
+
+x <- stars::read_ncdf(fl)
+# fix time values that were incorrectly stored in netcdf file -----------
+tm <- time(x)
+tm <- (tm - 1) |>
+  lubridate::round_date(unit = "day")
+# -----------------------------------------------------------------------
+# fix lat/lon values that were incorrectly stored in netcdf file --------
+nc <- ncdf4::nc_open(fl)
+lon <- ncdf4::ncvar_get(nc, "lon_rho")
+lat <- ncdf4::ncvar_get(nc, "lat_rho")
+ncdf4::nc_close(nc)
+# -----------------------------------------------------------------------
+x <- stars::st_set_dimensions(x, which = "xi_rho", values = round(lon[, 1], 2)) |>
+  stars::st_set_dimensions(which = "eta_rho", values = round(lat[1, ], 2)) |>
+  stars::st_set_dimensions(which = "time", values = tm)
+# stars::st_dimensions(x) <- stars::st_dimensions(x = round(lon[, 1], 2),
+#                                                 y = round(lat[1, ], 2),
+#                                                 time = tm)
+r <- aggregate(x, by = "months", FUN = mean)
+sf::st_crs(r) <- "epsg:4326"
+dat$sst2 <- stars::st_extract(r, at = dat, time_column = "yrmon")
+dat$sst2 <- stars::st_extract(r, at = dat[100, ], time_column = "date")
+
+
+
+# this works. above code does not.
+x <- stars::read_ncdf(fl, proxy = FALSE)
+# fix time values that were incorrectly stored in netcdf file -----------
+tm <- time(x)
+tm <- (tm - 1) |>
+  lubridate::round_date(unit = "day")
+# -----------------------------------------------------------------------
+# fix lat/lon values that were incorrectly stored in netcdf file --------
+nc <- ncdf4::nc_open(fl)
+lon <- ncdf4::ncvar_get(nc, "lon_rho")
+lat <- ncdf4::ncvar_get(nc, "lat_rho")
+ncdf4::nc_close(nc)
+# -----------------------------------------------------------------------
+r <- stars::st_as_stars(setNames(list(x[[1]]), names(x)),
+                        dimensions = stars::st_dimensions(x = round(lon[, 1], 2),
+                                                          y = round(lat[1, ], 2),
+                                                          time = tm))
+r <- aggregate(r, by = "months", FUN = mean)
+sf::st_crs(r) <- "WGS84"
+temp <- stars::st_extract(r, at = dat, time_column = "yrmon")
+# -----------------------------------------------------------------------
+
+
+
+
+
+
+
+ck <- fs::path("data", c("wcra31", "wcnrt")) |>
+  fs::dir_ls() |>
+  purrr::map(.f = create_intervals_monthly, round_dt = TRUE)
+
+
+dat <- prepare_data("data/segmented-data.csv") |>
+  dplyr::mutate(yrmon = lubridate::floor_date(date, "month")) |>
+  dplyr::group_by(yrmon)
+fl <- fs::path("data", c("wcra31", "wcnrt")) |>
+  fs::dir_ls()
+out <- list()
+for (i in seq(along = fl)) {
+  print(i)
+  nm <- fs::path_file(fl[[i]]) |>
+    stringr::str_split(pattern = "_") |>
+    purrr::map_vec(.f = \(x) paste(x[1:2], collapse = "_"))
+  out[[i]] <- dat |>
+    dplyr::mutate("{nm}" := extract_covariate_data(geometry |> terra::vect(),
+                                                   file = fl[[i]],
+                                                   start = unique(yrmon),
+                                                   end = lubridate::rollforward(unique(yrmon)))) |>
+    dplyr::pull()
+}
 
 
 r <- process_covariate_file(fl, start = "1990-01-01", end = "1990-01-01", label = "1990-01-01", round_dt = TRUE) |>

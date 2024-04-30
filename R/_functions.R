@@ -47,11 +47,14 @@ process_covariate_file <- function(file, start, end, label, round_dt = FALSE) {
     lon <- ncdf4::ncvar_get(nc, "lon_rho")
     lat <- ncdf4::ncvar_get(nc, "lat_rho")
     ncdf4::nc_close(nc)
-    r <- stars::st_as_stars(list(sst = r[[1]]),
+    r <- stars::st_as_stars(list(var = r[[1]]),
                             dimensions = stars::st_dimensions(x = round(lon[, 1], 2),
                                                               y = round(lat[1, ], 2),
                                                               time = tm[idx])) |>
       terra::rast()
+    # r <- stars::st_as_stars(x) |>
+    #   aggregate(by = "months", FUN = mean)
+    # stars::st_extract(r, )
     # -----------------------------------------------------------------------
 
     if (terra::nlyr(r) > 1) {
@@ -59,7 +62,7 @@ process_covariate_file <- function(file, start, end, label, round_dt = FALSE) {
     } else {
       terra::time(r) <- NULL
     }
-    terra::crs(r) <- "epsg:4326"
+    terra::crs(r) <- "WGS84"
     names(r) <- label
     terra::wrap(r)
   } else {
@@ -67,15 +70,30 @@ process_covariate_file <- function(file, start, end, label, round_dt = FALSE) {
   }
 }
 
-extract_covariate_data <- function(.data, file, start, end) {
-  r <- process_covariate_file(file, start = start, end = end, label = start, round_dt = TRUE)
-  if (isa(r, "PackedSpatRaster")) {
-    terra::unwrap(r) |>
-      terra::extract(y = .data, ID = FALSE) |>
-      dplyr::pull()
-  } else {
-    r
+extract_covariate_data <- function(x, at, time_column, round_dt = FALSE) {
+
+  r <- stars::read_ncdf(x, proxy = FALSE)
+  tm <- time(r)
+
+  # fix time values that were incorrectly stored in netcdf file -----------
+  if (round_dt) {
+    tm <- (tm - 1) |>
+      lubridate::round_date(unit = "day")
   }
+
+  # fix lat/lon values that were incorrectly stored in netcdf file --------
+  nc <- ncdf4::nc_open(x)
+  lon <- ncdf4::ncvar_get(nc, "lon_rho")
+  lat <- ncdf4::ncvar_get(nc, "lat_rho")
+  ncdf4::nc_close(nc)
+
+  r <- stars::st_as_stars(setNames(list(r[[1]]), names(r)),
+                          dimensions = stars::st_dimensions(x = round(lon[, 1], 2),
+                                                            y = round(lat[1, ], 2),
+                                                            time = tm)) |>
+    aggregate(r, by = "months", FUN = mean)
+  sf::st_crs(r) <- "WGS84"
+  stars::st_extract(r, at = at, time_column = time_column)
 }
 
 
