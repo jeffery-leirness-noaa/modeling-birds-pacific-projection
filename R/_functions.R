@@ -70,7 +70,7 @@ process_covariate_file <- function(file, start, end, label, round_dt = FALSE) {
   }
 }
 
-extract_covariate_data <- function(x, at, time_column, round_dt = FALSE) {
+extract_covariate_data <- function(x, at, time_column, name, round_dt = FALSE) {
 
   r <- stars::read_ncdf(x, proxy = FALSE)
   tm <- time(r)
@@ -87,7 +87,7 @@ extract_covariate_data <- function(x, at, time_column, round_dt = FALSE) {
   lat <- ncdf4::ncvar_get(nc, "lat_rho")
   ncdf4::nc_close(nc)
 
-  r <- stars::st_as_stars(setNames(list(r[[1]]), names(r)),
+  r <- stars::st_as_stars(setNames(list(r[[1]]), name),
                           dimensions = stars::st_dimensions(x = round(lon[, 1], 2),
                                                             y = round(lat[1, ], 2),
                                                             time = tm)) |>
