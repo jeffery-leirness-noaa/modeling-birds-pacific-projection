@@ -1,8 +1,8 @@
 default:
-  dataset: "data/segmented-data.csv"
+  target: "data_covariates"
 
 dev:
-  dataset: "data/segmented-data-dev.csv"
+  target: "data_covariates_dev"
 
 test:
-  dataset: "data/segmented-data-test.csv"
+  target: "data_covariates_test"

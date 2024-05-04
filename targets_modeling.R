@@ -1,18 +1,28 @@
+# source targets helper file
+if (fs::file_exists("_targets_helper.R")) {
+  source("_targets_helper.R")
+}
+
 # get configuration values
 config <- config::get(file = "config.yaml")
 
 # load targets package
 library(targets)
+library(tarchetypes)
 
 # set target options
 tar_option_set(
+  packages = c("qs", "sf"),
   format = "qs",
-  controller = crew::crew_controller_local(workers = parallel::detectCores() - 1, seconds_idle = 10)
+  controller = crew::crew_controller_local(workers = parallel::detectCores() - 1, seconds_idle = 10),
+  memory = "transient",
+  garbage_collection = TRUE
 )
 
 # source R scripts in the R/ folder
 tar_source()
 
+# create objects needed for certain targets
 simple_model_func <- function(.data, sp, dayofyear_k = -1, mgcv_gamma = 1, basis = "tp") {
   form <- count ~ platform +
     s(julianday, bs = basis) +
@@ -24,12 +34,12 @@ simple_model_func <- function(.data, sp, dayofyear_k = -1, mgcv_gamma = 1, basis
             gamma = mgcv_gamma)
 }
 
-list(
-  tar_target(data_path, command = config$dataset, format = "file"),
-  tar_target(data, command = prepare_data(data_path)),
-  tar_target(mods, command = tibble::tibble(sp = c("atpu", "blki", "coei", "noga", "rtlo"))),
-  tar_target(simple_model,
-             command = simple_model_func(.data = data, sp = mods$sp),
-             pattern = map(mods),
-             iteration = "list")
-)
+# targets
+target1 <- tar_target(data_path, command = tar_read(config$target, store = "covariate_processing"))
+target2 <- tar_target(data, command = sf::st_read(data_path))
+target3 <- tar_target(mods, command = tibble::tibble(sp = c("atpu", "blki", "coei", "noga", "rtlo")))
+target4 <- tar_target(simple_model,
+                      command = simple_model_func(.data = data, sp = mods$sp),
+                      pattern = map(mods),
+                      iteration = "list")
+list(target1, target2, target3, target4)
