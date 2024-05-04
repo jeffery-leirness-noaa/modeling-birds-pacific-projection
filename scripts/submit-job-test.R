@@ -1,8 +1,9 @@
 # set testing parameters
-code <- "./scripts"
-rscript_command <- "Rscript test.R --dir_out=${{outputs.dir_out}}"
+code <- "."
+rscript_command <- "Rscript test.R --dir_in=${{inputs.dir_in}} --dir_out=${{outputs.dir_out}}"
+dir_in <- "azureml://datastores/datastor_raw/paths/"
 dir_out <- "azureml://datastores/datastor_processing/paths"
-dir_env <- "./env"
+environment <- "azureml://registries/nccos-registry-ml/environments/nccos-leirness-modeling-birds-pacific-projection/versions/2"
 compute <- "nccos-vm-leirness-e4dsv4"
 experiment_name <- "r-data-access-testing"
 display_name <- "r-data-access-testing-exp-1"
@@ -50,6 +51,7 @@ job <- azure_ai_ml$command(code = code,
 source("R/submit_job.R")
 submit_job(code = code,
            command = rscript_command,
+           dir_in = dir_in,
            dir_out = dir_out,
            environment = environment,
            compute = compute,

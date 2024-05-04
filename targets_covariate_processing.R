@@ -1,3 +1,8 @@
+# source targets helper file
+if (fs::file_exists("_targets_helper.R")) {
+  source("_targets_helper.R")
+}
+
 # load targets package
 library(targets)
 library(tarchetypes)
@@ -6,28 +11,16 @@ library(tarchetypes)
 tar_option_set(
   packages = c("qs", "sf"),
   format = "qs",
-  controller = crew::crew_controller_local(workers = 3, seconds_idle = 10),
+  controller = crew::crew_controller_local(workers = 2, seconds_idle = 10),
   memory = "transient",
   garbage_collection = TRUE
 )
 
-# source necessary R scripts
-tar_source("R/_functions.R")
+# source R scripts in the R/ folder
+tar_source()
 
-# # transfer files from blob to compute
-# file_transfer <- reticulate::import_from_path("file_transfer", path = "../File-Transfer-Solution")
-# account_url <- "https://nccospacificsbdatastor.blob.core.windows.net"
-# container_name <- "raw"
-# local_folder <- "data"
-# cloud_folder <- ""
-# ftc <- file_transfer$FileTransferClient(account_url,
-#                                         container_name = container_name,
-#                                         local_folder = local_folder,
-#                                         cloud_folder = cloud_folder)
-# ftc$transfer_from_blob_to_compute()
-
-# targets
-data_source <- fs::path("data", c("wcra31", "wcnrt")) |>
+# create objects needed for certain targets
+data_source <- fs::path(opt$dir_in, c("wcra31", "wcnrt")) |>
   fs::dir_ls()
 var_name <- fs::path_file(data_source) |>
   fs::path_ext_remove() |>
@@ -35,11 +28,10 @@ var_name <- fs::path_file(data_source) |>
   purrr::map_vec(.f = \(x) paste(x[1:2], collapse = "_"))
 values <- tibble::tibble(data_source = data_source,
                          var_name = var_name)
-# values <- values[c(5, 14), ]
 
-
+# targets
 target1 <- tar_target(data_path,
-                      command = "data/segmented-data.csv",
+                      command = fs::path(opt$dir_in, "segmented-data.csv"),
                       format = "file",
                       deployment = "main")
 target2 <- tar_target(data,
@@ -57,7 +49,7 @@ target3 <- tar_map(values = values,
                                                                round_dt = TRUE) |>
                                 tibble::as_tibble() |>
                                 dplyr::select(var_name)))
-target4 <- tar_combine(data_analysis,
+target4 <- tar_combine(data_covariates,
                        target3[["extract"]],
                        command = dplyr::bind_cols(data, !!!.x) |>
                          dplyr::mutate(bbv = rowMeans(dplyr::pick(dplyr::ends_with("_bbv")), na.rm = TRUE),
@@ -72,7 +64,19 @@ target4 <- tar_combine(data_analysis,
                                        .keep = "unused") |>
                          tidyr::drop_na(!seastate) |>
                          dplyr::relocate(geometry, .after = dplyr::last_col()))
-list(target1, target2, target3, target4)
+target5 <- tar_target(data_covariates_dev,
+                      command = {
+                        set.seed(20240424)
+                        data_analysis |>
+                          sample_data(platform, prop = 0.1)
+                      })
+target6 <- tar_target(data_covariates_test,
+                      command = {
+                        set.seed(20240424)
+                        data_analysis |>
+                          sample_data(platform, prop = 0.4)
+                      })
+list(target1, target2, target3, target4, target5, target6)
 
 
 

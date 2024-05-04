@@ -145,13 +145,15 @@ prepare_data <- function(path) {
 }
 
 
-sample_data <- function(path, ..., n = NULL, prop = NULL) {
+sample_data <- function(.data, ..., n = NULL, prop = NULL) {
   if (!is.null(n)) {
-    readr::read_csv(path, show_col_types = FALSE) |>
+    # readr::read_csv(path, show_col_types = FALSE) |>
+    .data |>
       dplyr::group_by(...) |>
       dplyr::slice_sample(n = n)
   } else if (!is.null(prop)) {
-    readr::read_csv(path, show_col_types = FALSE) |>
+    # readr::read_csv(path, show_col_types = FALSE) |>
+    .data |>
       dplyr::group_by(...) |>
       dplyr::slice_sample(prop = prop)
   }
