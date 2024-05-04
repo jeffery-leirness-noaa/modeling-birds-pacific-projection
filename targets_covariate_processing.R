@@ -67,13 +67,13 @@ target4 <- tar_combine(data_covariates,
 target5 <- tar_target(data_covariates_dev,
                       command = {
                         set.seed(20240424)
-                        data_analysis |>
+                        data_covariates |>
                           sample_data(platform, prop = 0.1)
                       })
 target6 <- tar_target(data_covariates_test,
                       command = {
                         set.seed(20240424)
-                        data_analysis |>
+                        data_covariates |>
                           sample_data(platform, prop = 0.4)
                       })
 list(target1, target2, target3, target4, target5, target6)
