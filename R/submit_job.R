@@ -1,7 +1,8 @@
 
-submit_job <- function(code = ".", command, dir_out = NULL, environment = NULL,
-                       compute, experiment_name, display_name, description,
-                       subscription_id, resource_group_name, workspace_name) {
+submit_job <- function(code = ".", command, dir_in = NULL, dir_out = NULL,
+                       environment = NULL, compute, experiment_name,
+                       display_name, description, subscription_id,
+                       resource_group_name, workspace_name) {
 
   # import required libraries
   azure_ai_ml <- reticulate::import("azure.ai.ml")
@@ -15,6 +16,11 @@ submit_job <- function(code = ".", command, dir_out = NULL, environment = NULL,
                                     workspace_name = workspace_name)
 
   # configure the command
+  if (is.null(dir_in)) {
+    inputs <- NULL
+  } else {
+    inputs <- {"dir_in": azure_ai_ml$Input(type = "uri_folder", path = dir_in, mode = "ro_mount")}
+  }
   if (is.null(dir_out)) {
     outputs <- NULL
   } else {
@@ -22,6 +28,7 @@ submit_job <- function(code = ".", command, dir_out = NULL, environment = NULL,
   }
   job <- azure_ai_ml$command(code = code,
                              command = command,
+                             inputs = inputs,
                              outputs = outputs,
                              environment = environment,
                              compute = compute,
