@@ -1,5 +1,5 @@
 # Install specific R version
-FROM rocker/geospatial:4.3.2
+FROM rocker/geospatial:4.4.0
 
 # Install python
 RUN apt-get update -qq && \
