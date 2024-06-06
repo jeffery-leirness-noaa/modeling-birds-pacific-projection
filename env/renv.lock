@@ -3,8 +3,8 @@
     "Version": "4.4.0",
     "Repositories": [
       {
-        "Name": "CRAN",
-        "URL": "https://p3m.dev/cran/latest"
+        "Name": "PPM",
+        "URL": "https://packagemanager.posit.co/cran/2024-06-01"
       }
     ]
   },
