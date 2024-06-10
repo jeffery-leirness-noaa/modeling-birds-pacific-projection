@@ -138,9 +138,9 @@ process_covariate_data <- function(file, fname) {
 prepare_data <- function(path) {
   data.table::fread(path) |>
     tibble::as_tibble(.name_repair = janitor::make_clean_names) |>
-    dplyr::mutate(date = lubridate::as_date(paste(year, month, day, sep = "-")),
-                  .before = dplyr::everything()) |>
-    dplyr::select(!c(year, month, day, season, chla:index_pdo_lag12)) |>
+    # dplyr::mutate(date = lubridate::as_date(paste(year, month, day, sep = "-")),
+    #               .before = dplyr::everything()) |>
+    # dplyr::select(!c(year, month, day, season, chla:index_pdo_lag12)) |>
     sf::st_as_sf(coords = c("lon", "lat"), crs = "WGS84")
 }
 
