@@ -1,8 +1,8 @@
 # set testing parameters
 code = "."
 # rscript_command = "Rscript test.R"
-# rscript_command = "Rscript scripts/test.R --dir_in=${{inputs.dir_in}} --dir_out=${{outputs.dir_out}}"
-rscript_command = "Rscript tar_make.R --dir_in=${{inputs.dir_in}} --dir_out=${{outputs.dir_out}}"
+rscript_command = "Rscript scripts/test.R --dir_in=${{inputs.dir_in}} --dir_out=${{outputs.dir_out}}"
+# rscript_command = "Rscript tar_make.R --dir_in=${{inputs.dir_in}} --dir_out=${{outputs.dir_out}}"
 # dir_in = None
 dir_in = "azureml://datastores/datastor_raw/paths/"
 # dir_out = None

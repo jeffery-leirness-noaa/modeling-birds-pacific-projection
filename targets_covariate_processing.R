@@ -31,7 +31,7 @@ values <- tibble::tibble(data_source = data_source,
 
 # targets
 target1 <- tar_target(data_path,
-                      command = fs::path(opt$dir_in, "segmented-data.csv"),
+                      command = fs::path(opt$dir_in, "segmented-data.rds"),
                       format = "file",
                       deployment = "main")
 target2 <- tar_target(data,

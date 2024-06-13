@@ -21,24 +21,19 @@ targets::tar_helper("_targets_helper.R", code = {
   opt <- setNames(opt, !!names(opt))
 })
 
-# # copy files from blob to compute
-# fs::dir_copy(fs::path(opt$dir_out, targets::tar_config_get("store")),
-#              new_path = targets::tar_config_get("store"),
-#              overwrite = TRUE)
-#
-# # Sys.setenv(TAR_PROJECT = "covariate_processing")
-#
-# # ptm <- Sys.time()
-# targets::tar_make()
-# # Sys.time() - ptm
-# # Time difference of 15.40642 mins
-#
-# # targets::tar_manifest()
-# # targets::tar_visnetwork(targets_only = TRUE)
-# #
-# # targets::tar_destroy()
-#
-# # copy files from compute to blob
-# fs::dir_copy(targets::tar_config_get("store"),
-#              new_path = fs::path(opt$dir_out, targets::tar_config_get("store")),
-#              overwrite = TRUE)
+# copy files from blob to compute
+if (fs::dir_exists(fs::path(opt$dir_out, targets::tar_config_get("store")))) {
+  fs::dir_copy(fs::path(opt$dir_out, targets::tar_config_get("store")),
+               new_path = targets::tar_config_get("store"),
+               overwrite = TRUE)
+}
+
+# run targets
+targets::tar_make()
+
+# copy files from compute to blob
+if (fs::dir_exists(targets::tar_config_get("store"))) {
+  fs::dir_copy(targets::tar_config_get("store"),
+               new_path = fs::path(opt$dir_out, targets::tar_config_get("store")),
+               overwrite = TRUE)
+}
