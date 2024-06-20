@@ -21,4 +21,4 @@ dplyr::bind_rows(dat, dat_mamu) |>
                 .before = dplyr::everything()) |>
   dplyr::select(!c(year, month, day, season, chla:index_pdo_lag12)) |>
   dplyr::arrange(date, survey_id, transect_id, segment_id) |>
-  readr::write_rds(file = "data/segmented-data.rds")
+  readr::write_csv(file = "data/segmented-data.csv")

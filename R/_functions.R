@@ -136,7 +136,7 @@ process_covariate_data <- function(file, fname) {
 
 
 prepare_data <- function(path) {
-  readr::read_rds(path) |>
+  readr::read_csv(path) |>
     # data.table::fread(path) |>
     #   tibble::as_tibble(.name_repair = janitor::make_clean_names) |>
     #   dplyr::mutate(date = lubridate::as_date(paste(year, month, day, sep = "-")),
