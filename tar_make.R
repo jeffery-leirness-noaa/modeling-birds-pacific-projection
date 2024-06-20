@@ -27,6 +27,14 @@ if (fs::dir_exists(fs::path(opt$dir_out, targets::tar_config_get("store")))) {
                new_path = targets::tar_config_get("store"),
                overwrite = TRUE)
 }
+# if TAR_PROJECT is "modeling", also copy "covariate_processing" targets store
+if (Sys.getenv("TAR_PROJECT") == "modeling") {
+  if (fs::dir_exists(fs::path(opt$dir_out, targets::tar_config_get("store", project = "covariate_processing")))) {
+    fs::dir_copy(fs::path(opt$dir_out, targets::tar_config_get("store", project = "covariate_processing")),
+                 new_path = targets::tar_config_get("store", project = "covariate_processing"),
+                 overwrite = TRUE)
+  }
+}
 
 # run targets
 targets::tar_make()
