@@ -76,7 +76,14 @@ target6 <- tar_target(data_covariates_test,
                         data_covariates |>
                           sample_data(platform, prop = 0.4)
                       })
-list(target1, target2, target3, target4, target5, target6)
+list(
+  target1,
+  target2,
+  target3,
+  target4,
+  target5,
+  target6
+)
 
 
 
