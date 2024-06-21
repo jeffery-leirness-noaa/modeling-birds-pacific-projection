@@ -17,9 +17,13 @@ RUN R -e "install.packages('renv', repos = c(CRAN = 'https://cloud.r-project.org
 # Copy the renv.lock lockfile to the container
 WORKDIR /project
 COPY renv.lock renv.lock
+COPY requirements.txt requirements.txt
 
 # Set renv library path
 ENV RENV_PATHS_LIBRARY renv/library
 
 # Restore packages from renv lockfile
 RUN R -e "renv::restore()"
+
+# Install python requirements
+RUN pip install -r requirements.txt
