@@ -38,7 +38,7 @@ simple_model_func <- function(data, sp, dayofyear_k = -1, mgcv_gamma = 1, basis 
 target1 <- tar_target(data,
                       command = targets::tar_read_raw(config$target, store = targets::tar_config_get("store", project = "covariate_processing")))
 target2 <- tar_target(mods,
-                      command = tibble::tibble(sp = c("atpu", "blki", "coei")))
+                      command = tibble::tibble(sp = c("bfal", "blki", "comu")))
 target3 <- tar_target(simple_model,
                       command = simple_model_func(data = data, sp = mods$sp),
                       pattern = map(mods),
