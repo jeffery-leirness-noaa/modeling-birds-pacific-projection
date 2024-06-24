@@ -39,8 +39,15 @@ target1 <- tar_target(data,
                       command = targets::tar_read_raw(config$target, store = targets::tar_config_get("store", project = "covariate_processing")))
 target2 <- tar_target(mods,
                       command = tibble::tibble(sp = c("bfal", "blki", "comu")))
-target3 <- tar_target(simple_model,
-                      command = simple_model_func(data = data, sp = mods$sp),
+target3 <- tar_target(simple_model_test,
+                      command = submit_job(command = paste0("Rscript _test_simple_model_func.R --dir_in=${{inputs.dir_in}} --dir_out=${{outputs.dir_out}} --sp='", mods$sp, "'"),
+                                           dir_in = Sys.getenv("AML_DATASTORE_RAW"),
+                                           dir_out = Sys.getenv("AML_DATASTORE_PROCESSING"),
+                                           environment = config$aml_env,
+                                           compute = "nccos-vm-cluster-ds2",
+                                           experiment_name = "test-simple-model",
+                                           display_name = "test-simple-model-run-1",
+                                           description = "Test running simple model on separate nodes of compute cluster."),
                       pattern = map(mods),
                       iteration = "list")
 list(
