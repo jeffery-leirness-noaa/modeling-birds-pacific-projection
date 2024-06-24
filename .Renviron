@@ -1,3 +1,9 @@
+AML_SUBSCRIPTION_ID="737b86ee-60d4-40ce-bb2f-11f4ef6f4f8c"
+AML_RESOURCE_GROUP="nccos-mse-biogeo-seabirds-rg"
+AML_WORKSPACE_NAME="nccos-mse-biogeo-seabird-ml"
+AML_DATASTORE_RAW="azureml://datastores/datastor_raw/paths/"
+AML_DATASTORE_OUTPUT="azureml://datastores/datastor_output/paths/"
+AML_DATASTORE_PROCESSING="azureml://datastores/datastor_processing/paths/"
 RENV_PATHS_LOCKFILE=env/renv.lock
 RENV_CONFIG_SANDBOX_ENABLED=FALSE
 RENV_CONFIG_SYNCHRONIZED_CHECK=FALSE

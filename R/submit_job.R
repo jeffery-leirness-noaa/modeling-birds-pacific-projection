@@ -1,30 +1,59 @@
 
 submit_job <- function(code = ".", command, dir_in = NULL, dir_out = NULL,
                        environment = NULL, compute, experiment_name,
-                       display_name, description, subscription_id,
-                       resource_group_name, workspace_name) {
+                       display_name, description, subscription_id = NULL,
+                       resource_group = NULL, workspace_name = NULL) {
 
   # import required libraries
   azure_ai_ml <- reticulate::import("azure.ai.ml")
   azure_ai_ml_entities <- reticulate::import("azure.ai.ml.entities")
   azure_identity <- reticulate::import("azure.identity")
 
+  # get azure machine learning configuration specs
+  if (any(is.null(subscription_id), is.null(resource_group), is.null(workspace_name))) {
+    aml_config_path <- "/config.json"
+    if (fs::file_exists(aml_config_path)) {
+      aml_config <- rjson::fromJSON(file = aml_config_path)
+    }
+    if (is.null(subscription_id)) {
+      if (Sys.getenv("AML_SUBSCRIPTION_ID") != "") {
+        subscription_id <- Sys.getenv("AML_SUBSCRIPTION_ID")
+      } else if (exists("aml_config")) {
+        subscription_id <- aml_config$subscription_id
+      }
+    }
+    if (is.null(resource_group)) {
+      if (Sys.getenv("AML_RESOURCE_GROUP") != "") {
+        resource_group <- Sys.getenv("AML_RESOURCE_GROUP")
+      } else if (exists("aml_config")) {
+        resource_group <- aml_config$resource_group
+      }
+    }
+    if (is.null(workspace_name)) {
+      if (Sys.getenv("AML_WORKSPACE_NAME") != "") {
+        workspace_name <- Sys.getenv("AML_WORKSPACE_NAME")
+      } else if (exists("aml_config")) {
+        workspace_name <- aml_config$workspace_name
+      }
+    }
+  }
+
   # get a handle to the workspace
   ml_client <- azure_ai_ml$MLClient(credential = azure_identity$DefaultAzureCredential(),
                                     subscription_id = subscription_id,
-                                    resource_group_name = resource_group_name,
+                                    resource_group_name = resource_group,
                                     workspace_name = workspace_name)
 
   # configure the command
   if (is.null(dir_in)) {
     inputs <- NULL
   } else {
-    inputs <- {"dir_in": azure_ai_ml$Input(type = "uri_folder", path = dir_in, mode = "ro_mount")}
+    inputs <- reticulate::dict("dir_in" = azure_ai_ml$Input(type = "uri_folder", path = dir_in, mode = "ro_mount"))
   }
   if (is.null(dir_out)) {
     outputs <- NULL
   } else {
-    outputs <- {"dir_out": azure_ai_ml$Output(type = "uri_folder", path = dir_out, mode = "rw_mount")}
+    outputs <- reticulate::dict("dir_out" = azure_ai_ml$Output(type = "uri_folder", path = dir_out, mode = "rw_mount"))
   }
   job <- azure_ai_ml$command(code = code,
                              command = command,
