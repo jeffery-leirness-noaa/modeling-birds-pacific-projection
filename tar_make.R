@@ -21,27 +21,14 @@ targets::tar_helper("_targets_helper.R", code = {
   opt <- setNames(opt, !!names(opt))
 })
 
-# copy files from blob to compute
-if (fs::dir_exists(fs::path(opt$dir_out, targets::tar_config_get("store")))) {
-  fs::dir_copy(fs::path(opt$dir_out, targets::tar_config_get("store")),
-               new_path = targets::tar_config_get("store"),
-               overwrite = TRUE)
-}
-# if TAR_PROJECT is "modeling", also copy "covariate_processing" targets store
+# specify path to targets datastore
+store_path <- fs::path(opt$dir_out, targets::tar_config_get("store"))
+targets::tar_config_set(store = store_path)
+# if TAR_PROJECT is "modeling", also specify the path to "covariate_processing" targets store
 if (Sys.getenv("TAR_PROJECT") == "modeling") {
-  if (fs::dir_exists(fs::path(opt$dir_out, targets::tar_config_get("store", project = "covariate_processing")))) {
-    fs::dir_copy(fs::path(opt$dir_out, targets::tar_config_get("store", project = "covariate_processing")),
-                 new_path = targets::tar_config_get("store", project = "covariate_processing"),
-                 overwrite = TRUE)
-  }
+  store_path_covariate_processing <- fs::path(opt$dir_out, targets::tar_config_get("store", project = "covariate_processing"))
+  targets::tar_config_set(store = store_path_covariate_processing, project = "covariate_processing")
 }
 
 # run targets
 targets::tar_make()
-
-# copy files from compute to blob
-if (fs::dir_exists(targets::tar_config_get("store"))) {
-  fs::dir_copy(targets::tar_config_get("store"),
-               new_path = fs::path(opt$dir_out, targets::tar_config_get("store")),
-               overwrite = TRUE)
-}
