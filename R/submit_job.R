@@ -69,3 +69,23 @@ submit_job <- function(code = ".", command, dir_in = NULL, dir_out = NULL,
   ml_client$create_or_update(job)
 
 }
+
+submit_job_rfile <- function(rfile, additional_args = NULL,
+                             dir_in = NULL, dir_out = NULL,
+                             environment = NULL, compute, experiment_name,
+                             display_name, description, subscription_id = NULL,
+                             resource_group = NULL, workspace_name = NULL) {
+  command <- paste("Rscript", rfile, "--dir_in=${{inputs.dir_in}} --dir_out=${{outputs.dir_out}}", additional_args) |>
+    trimws()
+  submit_job(command = command,
+             dir_in = dir_in,
+             dir_out = dir_out,
+             environment = environment,
+             compute = compute,
+             experiment_name = experiment_name,
+             display_name = display_name,
+             description = description,
+             subscription_id = subscription_id,
+             resource_group = resource_group,
+             workspace_name = workspace_name)
+}
