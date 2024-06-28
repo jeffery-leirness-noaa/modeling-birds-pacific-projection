@@ -43,4 +43,5 @@ simple_model_func <- function(data, sp, dayofyear_k = -1, mgcv_gamma = 1, basis 
             family = mgcv::nb(),
             gamma = mgcv_gamma)
 }
-simple_model_func(data = data, sp = opt$sp)
+simple_model_func(data = data, sp = opt$sp) |>
+  readr::write_rds(file = fs::path(opt$dir_out, paste0(opt$sp, ".rds")))
