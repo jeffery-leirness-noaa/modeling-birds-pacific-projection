@@ -9,6 +9,19 @@
 # sub <- az$get_subscription_by_name("nos-nccos-adfssub-6301")
 # sub$get_resource_group("nccos-mse-biogeo-seabirds-rg")
 
+# login <- AzureRMR::create_azure_login()
+login <- AzureRMR::get_azure_login()
+token <- login$token
+endp <- AzureStor::storage_endpoint("https://nccospacificsbdatastor.blob.core.windows.net",
+                                    token = token)
+AzureStor::list_storage_containers(endp)
+
+
+token <- AzureAuth::get_azure_token("https://storage.azure.com", tenant = "common",
+                                    app = token$client$client_id)
+
+
+
 AzureRMR::list_azure_logins()
 AzureRMR::create_azure_login(auth_type = "device_code")
 ck <- AzureRMR::get_azure_login()
@@ -27,13 +40,19 @@ endp <- AzureStor::storage_endpoint("https://nccospacificsbdatastor.blob.core.wi
                                     token = token)
 AzureStor::list_storage_containers(endp)
 
+# simplest solution so far
+token <- AzureAuth::get_managed_token("https://storage.azure.com")
+endp <- AzureStor::storage_endpoint("https://nccospacificsbdatastor.blob.core.windows.net",
+                                    token = token)
+AzureStor::list_storage_containers(endp)
+
 
 AzureRMR::list_azure_tokens()
 
 # if token exists, use it
 token <- AzureRMR::list_azure_tokens()[[1]]
 
-AzureAuth::get_managed_token("https://storage.azure.com")
+token <- AzureAuth::get_managed_token("https://storage.azure.com")
 AzureAuth::get_managed_token("https://management.azure.com/")
 
 # else, create/get azure active directory (AAD) token
