@@ -213,3 +213,17 @@ sample_data <- function(.data, ..., n = NULL, prop = NULL) {
       dplyr::slice_sample(prop = prop)
   }
 }
+
+fit_model <- function(formula, data, species_code, mgcv_select = FALSE, mgcv_gamma) {
+  parsnip::gen_additive_mod(select_features = mgcv_select,
+                            adjust_deg_free = mgcv_gamma) |>
+    parsnip::set_engine("mgcv", family = mgcv::nb()) |>
+    parsnip::set_mode("regression") |>
+    parsnip::fit(formula, data = data)
+}
+
+
+diagnostic_plot <- function(model, se = FALSE) {
+  # marginal effects plots (i.e., term plots) with standard errors
+  mgcv::plot.gam(model, rug = TRUE, se = se, pages = 1, scale = 0, shade = TRUE)
+}
