@@ -1,4 +1,6 @@
 
+library(sf)
+
 # get configuration values
 config <- config::get(file = "config.yaml")
 
@@ -12,23 +14,23 @@ dat$x6 <- runif(nrow(dat), 0, 1)
 
 form <- count ~ platform + s(depth, bs = "tp") + s(x4, bs = "tp")
 m1 <- mgcv::gam(form,
-                data = dplyr::rename(dat, "count" = tolower(sp)),
+                data = dplyr::rename(dat, count = tolower(sp)),
                 family = mgcv::nb())
 
 form <- count ~ platform + s(depth, bs = "tp") + s(x4, bs = "tp")
 m2 <- mgcv::gam(form,
-                data = dplyr::rename(dat, "count" = tolower(sp)),
+                data = dplyr::rename(dat, count = tolower(sp)),
                 family = mgcv::nb(),
                 select = TRUE)
 
 form <- count ~ platform + s(depth, bs = "ts") + s(x4, bs = "ts")
 m3 <- mgcv::gam(form,
-                data = dplyr::rename(dat, "count" = tolower(sp)),
+                data = dplyr::rename(dat, count = tolower(sp)),
                 family = mgcv::nb())
 
 form <- count ~ platform + s(depth, bs = "ts") + s(x4, bs = "ts")
 m4 <- mgcv::gam(form,
-                data = dplyr::rename(dat, "count" = tolower(sp)),
+                data = dplyr::rename(dat, count = tolower(sp)),
                 family = mgcv::nb(),
                 select = TRUE)
 
@@ -38,25 +40,93 @@ form <- count ~ platform + s(depth, bs = "tp") + s(x4, bs = "tp") + s(x5, bs = "
 m1b <- parsnip::gen_additive_mod() |>
   parsnip::set_engine("mgcv", family = mgcv::nb()) |>
   parsnip::set_mode("regression") |>
-  parsnip::fit(form, data = dplyr::rename(dat, "count" = tolower(sp)))
+  parsnip::fit(form, data = dplyr::rename(dat, count = tolower(sp)))
 
 form <- count ~ platform + s(depth, bs = "tp") + s(x4, bs = "tp") + s(x5, bs = "tp") + s(x6, bs = "tp")
 m2b <- parsnip::gen_additive_mod(select_features = TRUE) |>
   parsnip::set_engine("mgcv", family = mgcv::nb()) |>
   parsnip::set_mode("regression") |>
-  parsnip::fit(form, data = dplyr::rename(dat, "count" = tolower(sp)))
+  parsnip::fit(form, data = dplyr::rename(dat, count = tolower(sp)))
+
+
+form <- paste(sp, '~ platform + s(depth, bs = "tp") + s(x4, bs = "tp") + s(x5, bs = "tp") + s(x6, bs = "tp")') |>
+  as.formula()
+m2b <- parsnip::gen_additive_mod(select_features = TRUE) |>
+  parsnip::set_engine("mgcv", family = mgcv::nb()) |>
+  parsnip::set_mode("regression") |>
+  parsnip::fit(form, data = dat)
+
+
+form <- paste(sp, '~ platform + s(depth, bs = "tp") + s(x4, bs = "tp") + s(x5, bs = "tp") + s(x6, bs = "tp")') |>
+  as.formula()
+gam_model <- parsnip::gen_additive_mod(select_features = TRUE) |>
+  parsnip::set_engine("mgcv", family = mgcv::nb()) |>
+  parsnip::set_mode("regression")
+
+gam_workflow <- workflows::workflow() |>
+  workflows::add_variables(outcome = bfal,
+                           predictors = c(platform, depth, x4, x5, x6)) |>
+  workflows::add_model(gam_model, formula = form)
+
+gam_fit <- parsnip::fit(gam_workflow, data = dat |> tibble::as_tibble())
+
+
+# things to test:
+# 1. will predict() work on saved (.rds) mgcv object that is loaded without the data?
+# 2. will predict() work on saved (.rds) parsnip object that is loaded without the data?
+# 3. will predict() work on saved (.rds) workflows object that is loaded without the data?
+library(sf)
+config <- config::get(file = "config.yaml")
+dat <- targets::tar_read_raw(config$target, store = targets::tar_config_get("store", project = "covariate_processing"))
+sp <- "bfal"
+dat$x4 <- runif(nrow(dat), 0, 1)
+dat$x5 <- runif(nrow(dat), 0, 1)
+dat$x6 <- runif(nrow(dat), 0, 1)
+dat$sid <- stringr::str_split_i(dat$survey_id, pattern = "_", i = 1) |>
+  as.factor()
+form <- paste(sp, '~ platform + s(sid, bs = "re") + s(depth, bs = "ts") + s(x4, bs = "ts") + s(x5, bs = "ts") + s(x6, bs = "ts")') |>
+  as.formula()
+m1_mgcv <- mgcv::gam(form, data = dat, family = mgcv::nb())
+gam_model <- parsnip::gen_additive_mod() |>
+  parsnip::set_engine("mgcv", family = mgcv::nb()) |>
+  parsnip::set_mode("regression")
+m1_parsnip <- parsnip::fit(gam_model, formula = form, data = dat)
+gam_workflow <- workflows::workflow() |>
+  workflows::add_variables(outcome = bfal,
+                           predictors = c(platform, sid, depth, x4, x5, x6)) |>
+  workflows::add_model(gam_model, formula = form)
+m1_workflows <- parsnip::fit(gam_workflow, data = dat |> tibble::as_tibble())
+
+saveRDS(m1_mgcv, "data/test-model-mgcv.rds")
+saveRDS(m1_parsnip, "data/test-model-parsnip.rds")
+saveRDS(m1_workflows, "data/test-model-workflows.rds")
+
+# restart R session, then do:
+m1_mgcv <- readRDS("data/test-model-mgcv.rds")
+m1_parsnip <- readRDS("data/test-model-parsnip.rds")
+m1_workflows <- readRDS("data/test-model-workflows.rds")
+data_test <- tibble::tibble(platform = "boat",
+                            sid = "CAC",
+                            depth = -1000,
+                            x4 = runif(20, 0, 1),
+                            x5 = runif(20, 0, 1),
+                            x6 = runif(20, 0, 1))
+predict(m1_mgcv, newdata = data_test, type = "response", exclude = "s(sid)")
+predict(m1_parsnip, new_data = data_test, type = "raw", opts = list(type = "response", exclude = "s(sid)"))
+predict(m1_workflows, new_data = data_test, type = "raw", opts = list(type = "response", exclude = "s(sid)"))
+
 
 form <- count ~ platform + s(depth, bs = "ts") + s(x4, bs = "ts") + s(x5, bs = "ts") + s(x6, bs = "ts")
 m3b <- parsnip::gen_additive_mod() |>
   parsnip::set_engine("mgcv", family = mgcv::nb()) |>
   parsnip::set_mode("regression") |>
-  parsnip::fit(form, data = dplyr::rename(dat, "count" = tolower(sp)))
+  parsnip::fit(form, data = dplyr::rename(dat, count = tolower(sp)))
 
 form <- count ~ platform + s(depth, bs = "ts") + s(x4, bs = "ts") + s(x5, bs = "ts") + s(x6, bs = "ts")
 m4b <- parsnip::gen_additive_mod() |>
   parsnip::set_engine("mgcv", family = mgcv::nb()) |>
   parsnip::set_mode("regression") |>
-  parsnip::fit(form, data = dplyr::rename(dat, "count" = tolower(sp)))
+  parsnip::fit(form, data = dplyr::rename(dat, count = tolower(sp)))
 
 
 broom::tidy(m1b)
@@ -87,7 +157,7 @@ mgcv_gamm <- 1
 mod <- parsnip::gen_additive_mod(adjust_deg_free = mgcv_gamma) |>
   parsnip::set_engine("mgcv", family = mgcv::nb()) |>
   parsnip::set_mode("regression") |>
-  parsnip::fit(form, data = dplyr::rename(dat, "count" = tolower(sp)))
+  parsnip::fit(form, data = dplyr::rename(dat, count = tolower(sp)))
 summary(mod$fit)
 mgcv::plot.gam(mod$fit, pages = 1, scale = 0)
 
@@ -95,6 +165,6 @@ mgcv_gamma <- 1.4
 mod <- parsnip::gen_additive_mod(adjust_deg_free = mgcv_gamma) |>
   parsnip::set_engine("mgcv", family = mgcv::nb()) |>
   parsnip::set_mode("regression") |>
-  parsnip::fit(form, data = dplyr::rename(dat, "count" = tolower(sp)))
+  parsnip::fit(form, data = dplyr::rename(dat, count = tolower(sp)))
 summary(mod$fit)
 mgcv::plot.gam(mod$fit, pages = 1, scale = 0)
