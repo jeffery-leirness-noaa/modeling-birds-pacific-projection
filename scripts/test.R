@@ -30,7 +30,6 @@ data(mtcars)
 print(paste("opt$dir_in:", opt$dir_in))
 print(paste("opt$dir_out:", opt$dir_out))
 print(paste("R_CONFIG_ACTIVE:", Sys.getenv("R_CONFIG_ACTIVE")))
-print(paste("TAR_PROJECT:", Sys.getenv("TAR_PROJECT")))
 # print(paste("conf$dataset:", config$dataset))
 
 # save as RDS file

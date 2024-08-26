@@ -35,16 +35,37 @@ simple_model_func <- function(data, sp, dayofyear_k = -1, mgcv_gamma = 1, basis 
 }
 values <- tibble::tibble(sp = c("bfal", "blki", "comu"))
 
-# targets
-target1 <- tar_target(data,
-                      command = targets::tar_read_raw(config$target, store = targets::tar_config_get("store", project = "covariate_processing"))
-                      # format = "file"
-                      )
-target2 <- tar_target(rfile, command = "_test_simple_model_func.R", format = "file")
+# specify targets
+target1 <- tar_target(
+  data_covariates,
+  command = fs::path(opt$dir_in, config$data_covariates),
+  format = "file"
+)
+target2 <- tar_target(
+  data_covariates_dev,
+  command = {
+    set.seed(20240424)
+    data_covariates |>
+      sample_data(platform, prop = 0.1)
+  }
+)
+target3 <- tar_target(
+  data_covariates_test,
+  command = {
+    set.seed(20240424)
+    data_covariates |>
+      sample_data(platform, prop = 0.4)
+  }
+)
+target4 <- tar_target(
+  rfile,
+  command = "_test_simple_model_func.R",
+  format = "file"
+)
 # the following target will always rerun
 # possible solution: first time, run without `format = "file"``
 # once all runs have completed successfully, run all subsequent with `format = "file"`
-# target3 <- tar_map(values = values,
+# target5 <- tar_map(values = values,
 #                    tar_target(simple_model_test,
 #                               command = {
 #                                 submit_job_rfile(rfile = rfile,
@@ -60,24 +81,30 @@ target2 <- tar_target(rfile, command = "_test_simple_model_func.R", format = "fi
 #                               },
 #                               format = "file"
 #                    ))
-target3 <- tar_target(simple_model_test_laal,
-                      command = {
-                        submit_job_rfile(rfile = rfile,
-                                         additional_args = "--sp='laal'",
-                                         dir_in = Sys.getenv("AML_DATASTORE_RAW"),
-                                         dir_out = Sys.getenv("AML_DATASTORE_PROCESSING"),
-                                         environment = config$aml_env,
-                                         compute = "nccos-vm-cluster-ds2",
-                                         experiment_name = "test-simple-model",
-                                         display_name = "test-simple-model-laal",
-                                         description = "Test running simple model on separate nodes of compute cluster.")
-                        fs::path(opt$dir_out, "laal.rds")
-                      },
-                      format = "file")
+target5 <- tar_target(
+  simple_model_test_laal,
+  command = {
+    submit_job_rfile(rfile = rfile,
+                     additional_args = "--sp='laal'",
+                     dir_in = Sys.getenv("AML_DATASTORE_RAW"),
+                     dir_out = Sys.getenv("AML_DATASTORE_PROCESSING"),
+                     environment = config$aml_env,
+                     compute = "nccos-vm-cluster-ds2",
+                     experiment_name = "test-simple-model",
+                     display_name = "test-simple-model-laal",
+                     description = "Test running simple model on separate nodes of compute cluster.")
+    fs::path(opt$dir_out, "laal.rds")
+  },
+  format = "file"
+)
 fs::file_exists(fs::path(opt$dir_out, "laal.rds"))
 fs::dir_tree(opt$dir_out)
+
+# submit targets
 list(
   target1,
   target2,
-  target3
+  target3,
+  target4,
+  target5
 )

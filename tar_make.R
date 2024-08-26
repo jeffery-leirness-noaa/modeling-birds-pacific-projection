@@ -21,14 +21,5 @@ targets::tar_helper("_targets_helper.R", code = {
   opt <- setNames(opt, !!names(opt))
 })
 
-# specify path to targets datastore
-store_path <- fs::path(opt$dir_out, targets::tar_config_get("store"))
-targets::tar_config_set(store = store_path)
-# if TAR_PROJECT is "modeling", also specify the path to "covariate_processing" targets store
-if (Sys.getenv("TAR_PROJECT") == "modeling") {
-  store_path_covariate_processing <- fs::path(opt$dir_out, targets::tar_config_get("store", project = "covariate_processing"))
-  targets::tar_config_set(store = store_path_covariate_processing, project = "covariate_processing")
-}
-
 # run targets
 targets::tar_make()
