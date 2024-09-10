@@ -7,4 +7,5 @@
 *.amltmp
 *.amltemp
 *.amlsas
-_targets*/
+public/
+resources/
