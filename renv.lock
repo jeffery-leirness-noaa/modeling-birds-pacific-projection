@@ -4,7 +4,7 @@
     "Repositories": [
       {
         "Name": "PPM",
-        "URL": "https://packagemanager.posit.co/cran/2024-06-01"
+        "URL": "https://packagemanager.posit.co/cran/2024-09-01"
       }
     ]
   },
@@ -1816,9 +1816,14 @@
     },
     "targets": {
       "Package": "targets",
-      "Version": "1.7.1",
-      "Source": "Repository",
-      "Repository": "RSPM",
+      "Version": "1.7.1.9005",
+      "Source": "GitHub",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteUsername": "ropensci",
+      "RemoteRepo": "targets",
+      "RemoteRef": "main",
+      "RemoteSha": "6411f1f1053faca57ee1d8b0562e87d33ba1a1cb",
       "Requirements": [
         "R",
         "R6",
@@ -1840,7 +1845,7 @@
         "vctrs",
         "yaml"
       ],
-      "Hash": "d79b21ef513564351577d7064e1fc4dd"
+      "Hash": "977e71544661541ff1d05c2535bf3480"
     },
     "terra": {
       "Package": "terra",
