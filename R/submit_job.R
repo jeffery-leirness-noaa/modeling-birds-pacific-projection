@@ -75,7 +75,9 @@ submit_job_rfile <- function(rfile, additional_args = NULL,
                              environment = NULL, compute, experiment_name,
                              display_name, description, subscription_id = NULL,
                              resource_group = NULL, workspace_name = NULL) {
-  command <- paste("Rscript", rfile, "--dir_in=${{inputs.dir_in}} --dir_out=${{outputs.dir_out}}", additional_args) |>
+  arg_dir_in <- ifelse(!is.null(dir_in), "--dir_in=${{inputs.dir_in}}", "")
+  arg_dir_out <- ifelse(!is.null(dir_out), "--dir_out=${{inputs.dir_out}}", "")
+  command <- paste("Rscript", rfile, arg_dir_in, arg_dir_out, additional_args) |>
     trimws()
   submit_job(command = command,
              dir_in = dir_in,
