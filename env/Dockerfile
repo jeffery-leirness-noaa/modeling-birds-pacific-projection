@@ -10,7 +10,7 @@ RUN pip install -U pip
 RUN apt-get install -y python3.10-venv
 
 # Install azureml-mlflow
-# RUN pip install azureml-mlflow
+RUN pip install azureml-mlflow
 
 # Install renv
 RUN R -e "install.packages('renv', repos = c(CRAN = 'https://cloud.r-project.org'))"
@@ -21,16 +21,16 @@ COPY renv.lock renv.lock
 COPY requirements.txt requirements.txt
 
 # Set renv library path
-# ENV RENV_PATHS_LIBRARY renv/library
+ENV RENV_PATHS_LIBRARY renv/library
 
 # Copy the renv auto-loader tools
-RUN mkdir -p renv
-COPY .Rprofile .Rprofile
-COPY renv/activate.R renv/activate.R
-COPY renv/settings.json renv/settings.json
+# RUN mkdir -p renv
+# COPY .Rprofile .Rprofile
+# COPY renv/activate.R renv/activate.R
+# COPY renv/settings.json renv/settings.json
 
 # Restore packages from renv lockfile
 RUN R -e "renv::restore()"
 
 # Install python requirements
-# RUN pip install -r requirements.txt
+RUN pip install -r requirements.txt

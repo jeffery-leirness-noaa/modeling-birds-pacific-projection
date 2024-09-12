@@ -14,41 +14,36 @@ library(tarchetypes)
 tar_source()
 
 # set target options
-token <- azure_auth_token()
+if (!exists("targets_cas_local")) {
+  targets_cas_local <- FALSE
+}
+if (targets_cas_local) {
+  repository <- fs::path(opt$dir_out, targets::tar_path_store()) |>
+    tar_repository_cas_local()
+  command1 <- readr::read_csv(fs::path(opt$dir_in, "segmented-data.csv")) |>
+    expression()
+} else {
+  repository <- tar_repository_cas(upload = azure_upload,
+                                   download = azure_download,
+                                   exists = azure_exists)
+  token <- azure_auth_token()
+  resources <- tar_resources(
+    repository_cas = tar_resources_repository_cas(
+      envvars = c(TARGETS_AUTH_TOKEN = token$credentials$access_token)
+    ))
+  command1 <- AzureStor::storage_endpoint("https://nccospacificsbdatastor.blob.core.windows.net",
+                                          token = token) |>
+    AzureStor::storage_container(name = "raw") |>
+    AzureStor::storage_read_csv("segmented-data.csv") |>
+    expression()
+}
 tar_option_set(
   packages = c("qs", "sf"),
   format = "qs",
-  repository = tar_repository_cas(
-    upload = function(key, path) {
-      if (fs::is_dir(path)) {
-        stop("This CAS repository does not support directory outputs.")
-      }
-      AzureStor::upload_to_url(path,
-                               dest = paste(Sys.getenv("TARGETS_ENDPOINT"),
-                                            Sys.getenv("TARGETS_CONTAINER"),
-                                            targets::tar_path_store(), key, sep = "/"),
-                               token = Sys.getenv("TARGETS_AUTH_TOKEN"))
-    },
-    download = function(key, path) {
-      AzureStor::download_from_url(paste(Sys.getenv("TARGETS_ENDPOINT"),
-                                         Sys.getenv("TARGETS_CONTAINER"),
-                                         targets::tar_path_store(), key, sep = "/"),
-                                   dest = path,
-                                   token = Sys.getenv("TARGETS_AUTH_TOKEN"),
-                                   overwrite = TRUE)
-    },
-    exists = function(key) {
-      AzureStor::storage_endpoint(Sys.getenv("TARGETS_ENDPOINT"),
-                                  token = Sys.getenv("TARGETS_AUTH_TOKEN")) |>
-        AzureStor::storage_container(name = Sys.getenv("TARGETS_CONTAINER")) |>
-        AzureStor::storage_file_exists(fs::path(targets::tar_path_store(), key))
-    }
-  ),
+  repository = repository,
   memory = "transient",
   garbage_collection = TRUE,
-  resources = tar_resources(repository_cas = tar_resources_repository_cas(
-    envvars = c(TARGETS_AUTH_TOKEN = token$credentials$access_token)
-  )),
+  resources = if (targets_cas_local) NULL else resources,
   controller = crew::crew_controller_local(workers = parallel::detectCores() - 1, seconds_idle = 10)
 )
 
@@ -68,10 +63,7 @@ values <- tibble::tibble(sp = c("bfal", "blki", "comu"))
 # specify targets
 target1 <- tar_target(
   data_covariates,
-  command = AzureStor::storage_endpoint("https://nccospacificsbdatastor.blob.core.windows.net",
-                                        token = token) |>
-    AzureStor::storage_container(name = "raw") |>
-    AzureStor::storage_read_csv("segmented-data.csv"),
+  command = eval(command1),
   cue = tar_cue(mode = "always")
 )
 target2 <- tar_target(

@@ -19,7 +19,12 @@ opt <- optparse::parse_args(optparse::OptionParser(option_list = option_list))
 targets::tar_helper("_targets_helper.R", code = {
   opt <- !!opt
   opt <- setNames(opt, !!names(opt))
+  targets_cas_local <- TRUE
 })
+
+getwd()
+opt
+targets::tar_path_store()
 
 # run targets
 targets::tar_make()
