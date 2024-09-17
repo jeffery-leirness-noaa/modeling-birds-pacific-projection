@@ -6,44 +6,33 @@ if (fs::file_exists("_targets_helper.R")) {
 # get configuration values
 config <- config::get(file = "config.yaml")
 
-# load targets package
-library(targets)
-library(tarchetypes)
-
 # source R scripts in the R/ folder
-tar_source()
+targets::tar_source()
 
 # set target options
 if (!exists("targets_cas_local")) {
   targets_cas_local <- FALSE
 }
 if (targets_cas_local) {
-  repository <- fs::path(opt$dir_out, targets::tar_path_store()) |>
-    tar_repository_cas_local()
-  command1 <- readr::read_csv(fs::path(opt$dir_in, "segmented-data.csv")) |>
-    expression()
+  repository <- targets::tar_repository_cas_local(opt$dir_targets_cas)
 } else {
-  repository <- tar_repository_cas(upload = azure_upload,
-                                   download = azure_download,
-                                   exists = azure_exists)
+  repository <- targets::tar_repository_cas(upload = azure_upload,
+                                            download = azure_download,
+                                            exists = azure_exists)
   token <- azure_auth_token()
-  resources <- tar_resources(
-    repository_cas = tar_resources_repository_cas(
+  resources <- targets::tar_resources(
+    repository_cas = targets::tar_resources_repository_cas(
       envvars = c(TARGETS_AUTH_TOKEN = token$credentials$access_token)
     ))
-  command1 <- AzureStor::storage_endpoint("https://nccospacificsbdatastor.blob.core.windows.net",
-                                          token = token) |>
-    AzureStor::storage_container(name = "raw") |>
-    AzureStor::storage_read_csv("segmented-data.csv") |>
-    expression()
 }
-tar_option_set(
+targets::tar_option_set(
   packages = c("qs", "sf"),
   format = "qs",
   repository = repository,
   memory = "transient",
   garbage_collection = TRUE,
   resources = if (targets_cas_local) NULL else resources,
+  cue = targets::tar_cue(repository = FALSE),
   controller = crew::crew_controller_local(workers = parallel::detectCores() - 1, seconds_idle = 10)
 )
 
@@ -60,24 +49,94 @@ simple_model_func <- function(data, sp, dayofyear_k = -1, mgcv_gamma = 1, basis 
 }
 values <- tibble::tibble(sp = c("bfal", "blki", "comu"))
 
-# specify targets
-target1 <- tar_target(
-  data_covariates,
-  command = eval(command1),
-  cue = tar_cue(mode = "always")
+
+# specify targets ---------------------------------------------------------
+target_raw_data_bird <- targets::tar_target(
+  raw_data_bird,
+  command = create_targets_data_command("segmented-data.csv",
+                                        local = targets_cas_local,
+                                        token = Sys.getenv("TARGETS_AUTH_TOKEN")) |>
+    eval(),
+  cue = targets::tar_cue(mode = "always")
 )
-target2 <- tar_target(
+target_raw_data_wc12 <- targets::tar_target(
+  raw_data_wc12,
+  command = create_targets_data_command("segmented-data-wc12_3.csv",
+                                        local = targets_cas_local,
+                                        token = Sys.getenv("TARGETS_AUTH_TOKEN")) |>
+    eval(),
+  cue = targets::tar_cue(mode = "always")
+)
+target_raw_data_wcra31 <- targets::tar_target(
+  raw_data_wcra31,
+  command = create_targets_data_command("segmented-data-wcra_2.csv",
+                                        local = targets_cas_local,
+                                        token = Sys.getenv("TARGETS_AUTH_TOKEN")) |>
+    eval(),
+  cue = targets::tar_cue(mode = "always")
+)
+target_raw_data_wcnrt <- targets::tar_target(
+  raw_data_wcnrt,
+  command = create_targets_data_command("segmented-data-wcnrt.csv",
+                                        local = targets_cas_local,
+                                        token = Sys.getenv("TARGETS_AUTH_TOKEN")) |>
+    eval(),
+  cue = targets::tar_cue(mode = "always")
+)
+target_depth_100m <- targets::tar_target(
+  depth_100m,
+  command = create_targets_data_command("depth-100m.tif",
+                                        local = targets_cas_local,
+                                        token = Sys.getenv("TARGETS_AUTH_TOKEN")) |>
+    eval()
+)
+target_slope_100m <- targets::tar_target(
+  slope_100m,
+  command = MultiscaleDTM::SlpAsp(terra::unwrap(depth_100m), w = c(3, 3),
+                                  method = "queen", metrics = "slope") |>
+    terra::wrap()
+)
+# block average 100-m resolution depth layer to 10-km resolution
+target_depth_10km <- targets::tar_target(
+  depth_10km,
+  command = terra::aggregate(terra::unwrap(depth_100m), fact = 100,
+                             fun = "mean", na.rm = TRUE)
+)
+target_depth_10km <- targets::tar_target(
+  slope_10km,
+  command = terra::aggregate(terra::unwrap(slope_100m), fact = 100,
+                             fun = "mean", na.rm = TRUE)
+)
+target_data_covariates <- targets::tar_target(
+  data_covariates,
+  command = {
+    by <- c("date", "survey_id", "transect_id", "segment_id")
+    hindcast <- prepare_data_covariates(raw_data_wc12) |>
+      dplyr::rename_with(~ stringr::str_replace(.x, pattern = "monthly_",
+                                                replacement = "hindcast_"),
+                         .cols = tidyselect::starts_with("monthly_"))
+    reanalysis <- dplyr::bind_rows(prepare_data_covariates(raw_data_wcra31),
+                                   prepare_data_covariates(raw_data_wcnrt)) |>
+      dplyr::rename_with(~ stringr::str_replace(.x, pattern = "monthly_",
+                                                replacement = "reanalysis_"),
+                         .cols = tidyselect::starts_with("monthly_"))
+    dplyr::left_join(raw_data_bird, y = hindcast, by = by) |>
+      dplyr::left_join(y = reanalysis, by = by) |>
+      prepare_data_analysis()
+  }
+)
+target_data_covariates_dev <- targets::tar_target(
   data_covariates_dev,
   command = {
-    set.seed(20240424)
+    # set.seed(20240424)
     data_covariates |>
       sample_data(platform, prop = 0.1)
   }
 )
-target3 <- tar_target(
+target_data_covariates_test <- targets::tar_target(
   data_covariates_test,
   command = {
-    set.seed(20240424)
+    # set.seed(20240424)
     data_covariates |>
       sample_data(platform, prop = 0.4)
   }
@@ -125,9 +184,18 @@ target3 <- tar_target(
 # fs::file_exists(fs::path(opt$dir_out, "laal.rds"))
 # fs::dir_tree(opt$dir_out)
 
-# submit targets
+
+# submit targets ----------------------------------------------------------
 list(
-  target1,
-  target2,
-  target3
+  target_raw_data_bird,
+  target_raw_data_wc12,
+  target_raw_data_wcra31,
+  target_raw_data_wcnrt,
+  target_depth_100m,
+  target_slope_100m,
+  target_depth_10km,
+  target_slope_10km,
+  target_data_covariates,
+  target_data_covariates_dev,
+  target_data_covariates_test
 )

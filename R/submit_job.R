@@ -1,5 +1,5 @@
 
-submit_job <- function(code = ".", command, dir_in = NULL, dir_out = NULL,
+submit_job <- function(code = ".", command, inputs = NULL, outputs = NULL,
                        environment = NULL, compute, experiment_name,
                        display_name, description, subscription_id = NULL,
                        resource_group = NULL, workspace_name = NULL) {
@@ -45,15 +45,13 @@ submit_job <- function(code = ".", command, dir_in = NULL, dir_out = NULL,
                                     workspace_name = workspace_name)
 
   # configure the command
-  if (is.null(dir_in)) {
-    inputs <- NULL
-  } else {
-    inputs <- reticulate::dict("dir_in" = azure_ai_ml$Input(type = "uri_folder", path = dir_in, mode = "ro_mount"))
+  if (!is.null(inputs)) {
+    inputs <- purrr::map(inputs, .f = \(x) azure_ai_ml$Input(type = "uri_folder", path = x, mode = "ro_mount")) |>
+      reticulate::dict()
   }
-  if (is.null(dir_out)) {
-    outputs <- NULL
-  } else {
-    outputs <- reticulate::dict("dir_out" = azure_ai_ml$Output(type = "uri_folder", path = dir_out, mode = "rw_mount"))
+  if (!is.null(outputs)) {
+    outputs <- purrr::map(outputs, .f = \(x) azure_ai_ml$Output(type = "uri_folder", path = x, mode = "rw_mount")) |>
+      reticulate::dict()
   }
   job <- azure_ai_ml$command(code = code,
                              command = command,
@@ -71,17 +69,33 @@ submit_job <- function(code = ".", command, dir_in = NULL, dir_out = NULL,
 }
 
 submit_job_rfile <- function(rfile, additional_args = NULL,
-                             dir_in = NULL, dir_out = NULL,
+                             inputs = NULL, outputs = NULL,
                              environment = NULL, compute, experiment_name,
                              display_name, description, subscription_id = NULL,
                              resource_group = NULL, workspace_name = NULL) {
-  arg_dir_in <- ifelse(!is.null(dir_in), "--dir_in=${{inputs.dir_in}}", "")
-  arg_dir_out <- ifelse(!is.null(dir_out), "--dir_out=${{outputs.dir_out}}", "")
-  command <- paste("Rscript", rfile, arg_dir_in, arg_dir_out, additional_args) |>
+  if (!is.null(inputs)) {
+    arg_inputs <- purrr::map_chr(names(inputs),
+                                 .f = \(x) paste0("--", x, "=${{inputs.", x,
+                                                  "}}")) |>
+      stringr::str_flatten(collapse = " ")
+
+  } else {
+    arg_inputs <- ""
+  }
+  if (!is.null(outputs)) {
+    arg_outputs <- purrr::map_chr(names(outputs),
+                                 .f = \(x) paste0("--", x, "=${{outputs.", x,
+                                                  "}}")) |>
+      stringr::str_flatten(collapse = " ")
+
+  } else {
+    arg_outputs <- ""
+  }
+  command <- paste("Rscript", rfile, arg_inputs, arg_outputs, additional_args) |>
     trimws()
   submit_job(command = command,
-             dir_in = dir_in,
-             dir_out = dir_out,
+             inputs = inputs,
+             outputs = outputs,
              environment = environment,
              compute = compute,
              experiment_name = experiment_name,

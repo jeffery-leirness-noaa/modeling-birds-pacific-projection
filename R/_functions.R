@@ -32,6 +32,23 @@ storage_read <- function(container, file, ext = NULL, ...) {
     qs::qread(fl)
   } else if (ext == "gpkg") {
     sf::read_sf(fl)
+  } else if (ext %in% c("tif", "tiff")) {
+    terra::rast(fl) |>
+      terra::wrap()
+  }
+}
+
+
+create_targets_data_command <- function(file_name, local = TRUE, token = NULL) {
+  if (local) {
+    fs::path(opt$dir_in, !!file_name) |>
+      readr::read_csv() |>
+      rlang::expr()
+  } else {
+    AzureStor::storage_endpoint(Sys.getenv("TARGETS_ENDPOINT"), token = !!token) |>
+      AzureStor::storage_container(name = "raw") |>
+      storage_read(!!file_name) |>
+      rlang::expr()
   }
 }
 
@@ -52,13 +69,22 @@ storage_download_dir <- function(container, src, dest) {
 }
 
 
-prepare_data <- function(path) {
-  readr::read_csv(path) |>
-    # data.table::fread(path) |>
-    #   tibble::as_tibble(.name_repair = janitor::make_clean_names) |>
-    #   dplyr::mutate(date = lubridate::as_date(paste(year, month, day, sep = "-")),
-    #                 .before = dplyr::everything()) |>
-    #   dplyr::select(!c(year, month, day, season, chla:index_pdo_lag12)) |>
+prepare_data_covariates <- function(.data) {
+  .data |>
+    dplyr::select(c(date:segment_id, tidyselect::starts_with(c("monthly_", "distance")))) |>
+    dplyr::mutate(distance_use = rowMeans(dplyr::across(tidyselect::starts_with("distance")))) |>
+    dplyr::filter(distance_use > 0) |>
+    tidyr::drop_na() |>
+    dplyr::select(!tidyselect::starts_with("distance"))
+}
+
+
+prepare_data_analysis <- function(.data) {
+  .data |>
+    tibble::as_tibble(.name_repair = janitor::make_clean_names) |>
+    dplyr::select(!seastate) |>
+    dplyr::mutate(survey_id = stringr::str_split(survey_id, pattern = "_") |>
+                    purrr::map_chr(.f = \(x) stringr::str_flatten(x[-length(x)], collapse = "_"))) |>
     sf::st_as_sf(coords = c("lon", "lat"), crs = "WGS84")
 }
 
