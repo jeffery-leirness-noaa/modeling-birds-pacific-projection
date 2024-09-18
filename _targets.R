@@ -20,13 +20,14 @@ if (targets_cas_local) {
                                             download = azure_download,
                                             exists = azure_exists)
   token <- azure_auth_token()
+  token$refresh()
   resources <- targets::tar_resources(
     repository_cas = targets::tar_resources_repository_cas(
       envvars = c(TARGETS_AUTH_TOKEN = token$credentials$access_token)
     ))
 }
 targets::tar_option_set(
-  packages = c("qs", "sf"),
+  packages = c("qs", "sf", "terra"),
   format = "qs",
   repository = repository,
   memory = "transient",
@@ -51,62 +52,77 @@ values <- tibble::tibble(sp = c("bfal", "blki", "comu"))
 
 
 # specify targets ---------------------------------------------------------
+# marine bird data
 target_raw_data_bird <- targets::tar_target(
   raw_data_bird,
   command = create_targets_data_command("segmented-data.csv",
-                                        local = targets_cas_local,
-                                        token = Sys.getenv("TARGETS_AUTH_TOKEN")) |>
-    eval(),
-  cue = targets::tar_cue(mode = "always")
+                                        local = targets_cas_local) |>
+    eval()
 )
+
+# 1980-2010 hindcast predictor data sampled at marine bird data locations and months
 target_raw_data_wc12 <- targets::tar_target(
   raw_data_wc12,
   command = create_targets_data_command("segmented-data-wc12_3.csv",
-                                        local = targets_cas_local,
-                                        token = Sys.getenv("TARGETS_AUTH_TOKEN")) |>
-    eval(),
-  cue = targets::tar_cue(mode = "always")
+                                        local = targets_cas_local) |>
+    eval()
 )
+
+# 1980-2010 reanalysis predictor data sampled at marine bird data locations and months
 target_raw_data_wcra31 <- targets::tar_target(
   raw_data_wcra31,
   command = create_targets_data_command("segmented-data-wcra_2.csv",
-                                        local = targets_cas_local,
-                                        token = Sys.getenv("TARGETS_AUTH_TOKEN")) |>
-    eval(),
-  cue = targets::tar_cue(mode = "always")
+                                        local = targets_cas_local) |>
+    eval()
 )
+
+# 2011-24 reanalysis predictor data sampled at marine bird data locations and months
 target_raw_data_wcnrt <- targets::tar_target(
   raw_data_wcnrt,
   command = create_targets_data_command("segmented-data-wcnrt.csv",
-                                        local = targets_cas_local,
-                                        token = Sys.getenv("TARGETS_AUTH_TOKEN")) |>
-    eval(),
-  cue = targets::tar_cue(mode = "always")
+                                        local = targets_cas_local) |>
+    eval()
 )
+
+# depth raster layer (100-m resolution)
 target_depth_100m <- targets::tar_target(
   depth_100m,
   command = create_targets_data_command("depth-100m.tif",
-                                        local = targets_cas_local,
-                                        token = Sys.getenv("TARGETS_AUTH_TOKEN")) |>
+                                        local = targets_cas_local) |>
     eval()
 )
+
+# create slope raster layer (100-m resolution)
 target_slope_100m <- targets::tar_target(
   slope_100m,
   command = MultiscaleDTM::SlpAsp(terra::unwrap(depth_100m), w = c(3, 3),
                                   method = "queen", metrics = "slope") |>
-    terra::wrap()
+    terra::wrap(),
+  storage = "worker",
+  retrieval = "worker"
 )
+
 # block average 100-m resolution depth layer to 10-km resolution
 target_depth_10km <- targets::tar_target(
   depth_10km,
   command = terra::aggregate(terra::unwrap(depth_100m), fact = 100,
-                             fun = "mean", na.rm = TRUE)
+                             fun = "mean", na.rm = TRUE) |>
+    terra::wrap(),
+  storage = "worker",
+  retrieval = "worker"
 )
-target_depth_10km <- targets::tar_target(
+
+# block average 100-m resolution slope layer to 10-km resolution
+target_slope_10km <- targets::tar_target(
   slope_10km,
   command = terra::aggregate(terra::unwrap(slope_100m), fact = 100,
-                             fun = "mean", na.rm = TRUE)
+                             fun = "mean", na.rm = TRUE) |>
+    terra::wrap(),
+  storage = "worker",
+  retrieval = "worker"
 )
+
+# combine covariate data with marine bird data
 target_data_covariates <- targets::tar_target(
   data_covariates,
   command = {
@@ -125,22 +141,34 @@ target_data_covariates <- targets::tar_target(
       prepare_data_analysis()
   }
 )
+
+# create analysis dataset
+target_data_analysis <- targets::tar_target(
+  data_analysis,
+  command = {
+  }
+)
+
+# subset of analysis dataset to use for development purposes
 target_data_covariates_dev <- targets::tar_target(
-  data_covariates_dev,
+  data_analysis_dev,
   command = {
     # set.seed(20240424)
-    data_covariates |>
+    data_analysis |>
       sample_data(platform, prop = 0.1)
   }
 )
+
+# subset of analysis dataset to use for testing purposes
 target_data_covariates_test <- targets::tar_target(
-  data_covariates_test,
+  data_analysis_test,
   command = {
     # set.seed(20240424)
-    data_covariates |>
+    data_analysis |>
       sample_data(platform, prop = 0.4)
   }
 )
+
 # target4 <- tar_target(
 #   rfile,
 #   command = "_test_simple_model_func.R",
@@ -195,7 +223,8 @@ list(
   target_slope_100m,
   target_depth_10km,
   target_slope_10km,
-  target_data_covariates,
-  target_data_covariates_dev,
-  target_data_covariates_test
+  target_data_covariates
+  # target_data_analysis,
+  # target_data_analysis_dev,
+  # target_data_analysis_test
 )
