@@ -38,7 +38,7 @@ storage_read <- function(container, file, ext = NULL, ...) {
   }
 }
 
-
+# this will fail for .tiff files when local = TRUE!
 create_targets_data_command <- function(file_name, local = TRUE) {
   if (local) {
     fs::path(opt$dir_in, !!file_name) |>
@@ -70,11 +70,12 @@ storage_download_dir <- function(container, src, dest) {
 }
 
 
+# exclude data based on distance value?
 prepare_data_covariates <- function(.data) {
   .data |>
     dplyr::select(c(date:segment_id, tidyselect::starts_with(c("monthly_", "distance")))) |>
     dplyr::mutate(distance_use = rowMeans(dplyr::across(tidyselect::starts_with("distance")))) |>
-    dplyr::filter(distance_use > 0) |>
+    # dplyr::filter(distance_use == 0) |>
     tidyr::drop_na() |>
     dplyr::select(!tidyselect::starts_with("distance"))
 }
@@ -82,11 +83,19 @@ prepare_data_covariates <- function(.data) {
 
 prepare_data_analysis <- function(.data) {
   .data |>
-    tibble::as_tibble(.name_repair = janitor::make_clean_names) |>
     dplyr::select(!seastate) |>
     dplyr::mutate(survey_id = stringr::str_split(survey_id, pattern = "_") |>
-                    purrr::map_chr(.f = \(x) stringr::str_flatten(x[-length(x)], collapse = "_"))) |>
-    sf::st_as_sf(coords = c("lon", "lat"), crs = "WGS84")
+                    purrr::map_chr(.f = \(x) stringr::str_flatten(x[-length(x)], collapse = "_")),
+                  # time = julian(date),
+                  yday = lubridate::yday(date),
+                  survey_area_km2_sm = seg_length_km * seg_width_km_sm,
+                  survey_area_km2_lg = seg_length_km * seg_width_km_lg) |>
+    dplyr::relocate(yday, .after = date) |>
+    dplyr::relocate(anmu:wgwh, .after = tidyselect::last_col()) |>
+    tibble::as_tibble() |>
+    dplyr::select(!c(transect_id, segment_id, tidyselect::starts_with("seg_"), geometry)) |>
+    dplyr::group_by(dplyr::pick(date:y)) |>
+    dplyr::summarise(dplyr::across(survey_area_km2_sm:wgwh, sum))
 }
 
 

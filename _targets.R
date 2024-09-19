@@ -57,7 +57,8 @@ target_raw_data_bird <- targets::tar_target(
   raw_data_bird,
   command = create_targets_data_command("segmented-data.csv",
                                         local = targets_cas_local) |>
-    eval()
+    eval() |>
+    tibble::as_tibble(.name_repair = janitor::make_clean_names)
 )
 
 # 1980-2010 hindcast predictor data sampled at marine bird data locations and months
@@ -65,7 +66,8 @@ target_raw_data_wc12 <- targets::tar_target(
   raw_data_wc12,
   command = create_targets_data_command("segmented-data-wc12_3.csv",
                                         local = targets_cas_local) |>
-    eval()
+    eval() |>
+    tibble::as_tibble(.name_repair = janitor::make_clean_names)
 )
 
 # 1980-2010 reanalysis predictor data sampled at marine bird data locations and months
@@ -73,7 +75,8 @@ target_raw_data_wcra31 <- targets::tar_target(
   raw_data_wcra31,
   command = create_targets_data_command("segmented-data-wcra_2.csv",
                                         local = targets_cas_local) |>
-    eval()
+    eval() |>
+    tibble::as_tibble(.name_repair = janitor::make_clean_names)
 )
 
 # 2011-24 reanalysis predictor data sampled at marine bird data locations and months
@@ -81,7 +84,8 @@ target_raw_data_wcnrt <- targets::tar_target(
   raw_data_wcnrt,
   command = create_targets_data_command("segmented-data-wcnrt.csv",
                                         local = targets_cas_local) |>
-    eval()
+    eval() |>
+    tibble::as_tibble(.name_repair = janitor::make_clean_names)
 )
 
 # depth raster layer (100-m resolution)
@@ -136,37 +140,38 @@ target_data_covariates <- targets::tar_target(
       dplyr::rename_with(~ stringr::str_replace(.x, pattern = "monthly_",
                                                 replacement = "reanalysis_"),
                          .cols = tidyselect::starts_with("monthly_"))
-    dplyr::left_join(raw_data_bird, y = hindcast, by = by) |>
+    dat <- dplyr::left_join(raw_data_bird, y = hindcast, by = by) |>
       dplyr::left_join(y = reanalysis, by = by) |>
-      prepare_data_analysis()
+      sf::st_as_sf(coords = c("lon", "lat"), crs = "WGS84")
+    r <- list(depth_10km, slope_10km) |>
+      purrr::map(.f = terra::unwrap) |>
+      terra::rast()
+    names(r) <- c("depth", "slope")
+    dat <- sf::st_transform(dat, crs = terra::crs(r))
+    temp <- terra::extract(r, dat, cells = TRUE, xy = TRUE, ID = FALSE)
+    dplyr::bind_cols(dat, temp) |>
+      dplyr::relocate(geometry, .after = tidyselect::last_col())
   }
 )
 
 # create analysis dataset
 target_data_analysis <- targets::tar_target(
   data_analysis,
-  command = {
-  }
+  command = prepare_data_analysis(data_covariates)
 )
 
 # subset of analysis dataset to use for development purposes
-target_data_covariates_dev <- targets::tar_target(
+target_data_analysis_dev <- targets::tar_target(
   data_analysis_dev,
-  command = {
-    # set.seed(20240424)
-    data_analysis |>
-      sample_data(platform, prop = 0.1)
-  }
+  command = data_analysis |>
+    sample_data(platform, prop = 0.1)
 )
 
 # subset of analysis dataset to use for testing purposes
-target_data_covariates_test <- targets::tar_target(
+target_data_analysis_test <- targets::tar_target(
   data_analysis_test,
-  command = {
-    # set.seed(20240424)
-    data_analysis |>
-      sample_data(platform, prop = 0.4)
-  }
+  command = data_analysis |>
+    sample_data(platform, prop = 0.4)
 )
 
 # target4 <- tar_target(
