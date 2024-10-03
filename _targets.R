@@ -174,49 +174,56 @@ target_data_analysis_test <- targets::tar_target(
     sample_data(platform, prop = 0.4)
 )
 
-# target4 <- tar_target(
-#   rfile,
-#   command = "_test_simple_model_func.R",
-#   format = "file"
-# )
-# # the following target will always rerun
-# # possible solution: first time, run without `format = "file"``
-# # once all runs have completed successfully, run all subsequent with `format = "file"`
-# # target5 <- tar_map(values = values,
-# #                    tar_target(simple_model_test,
-# #                               command = {
-# #                                 submit_job_rfile(rfile = rfile,
-# #                                                  additional_args = paste0("--sp='", sp, "'"),
-# #                                                  dir_in = Sys.getenv("AML_DATASTORE_RAW"),
-# #                                                  dir_out = Sys.getenv("AML_DATASTORE_PROCESSING"),
-# #                                                  environment = config$aml_env,
-# #                                                  compute = "nccos-vm-cluster-ds2",
-# #                                                  experiment_name = "test-simple-model",
-# #                                                  display_name = paste0("test-simple-model-", sp),
-# #                                                  description = "Test running simple model on separate nodes of compute cluster.")
-# #                                 fs::path(opt$dir_out, paste0(sp, ".rds"))
-# #                               },
-# #                               format = "file"
-# #                    ))
-# target5 <- tar_target(
-#   simple_model_test_laal,
-#   command = {
-#     submit_job_rfile(rfile = rfile,
-#                      additional_args = "--sp='laal'",
-#                      dir_in = Sys.getenv("AML_DATASTORE_RAW"),
-#                      dir_out = Sys.getenv("AML_DATASTORE_PROCESSING"),
-#                      environment = config$aml_env,
-#                      compute = "nccos-vm-cluster-ds2",
-#                      experiment_name = "test-simple-model",
-#                      display_name = "test-simple-model-laal",
-#                      description = "Test running simple model on separate nodes of compute cluster.")
-#     fs::path(opt$dir_out, "laal.rds")
-#   },
-#   format = "file"
-# )
-# fs::file_exists(fs::path(opt$dir_out, "laal.rds"))
-# fs::dir_tree(opt$dir_out)
+# bird species codes
+target_data_spcodes <- targets::tar_target(
+  data_spcodes,
+  command = create_targets_data_command("species-codes.csv",
+                                        local = targets_cas_local) |>
+    eval() |>
+    tibble::as_tibble(.name_repair = janitor::make_clean_names)
+)
 
+# create data frame of species to model
+target_species_to_model <- targets::tar_target(
+  species_to_model,
+  command = create_species_to_model_df(data_analysis,
+                                       species_codes_df = data_spcodes,
+                                       threshold = 50)
+)
+
+# create data frame of models to run
+target_models_to_run <- targets::tar_target(
+  models_to_run,
+  command = create_models_to_run_df(species_to_model)
+)
+
+# fit models
+# target_model <- tarchetypes::tar_map(
+#   values = models_to_run |>
+#     dplyr::filter(spatial_random_effect == FALSE,
+#                   stringr::str_starts(code, pattern = "grp_", negate = TRUE)),
+#   targets::tar_target(
+#     model,
+#     command = {}
+#   )
+# )
+target_model_fits <- targets::tar_target(
+  model_fits,
+  command = fit_model(as.formula(models_to_run$model_formula),
+                      data = data_analysis_dev,
+                      species_size_class = models_to_run$size_class,
+                      mgcv_select = TRUE,
+                      mgcv_gamma = models_to_run$mgcv_gamma),
+  pattern = map(models_to_run),
+  iteration = "list"
+)
+
+# create prediction rasters from fitted models
+# target_model_predictions <- targets::tar_target(
+#   model_predictions,
+#   command = predict(model_fits, new_data = new_data, type = "raw",
+#                     opts = list(type = "response", exclude = "s(survey_id)"))
+# )
 
 # submit targets ----------------------------------------------------------
 list(
@@ -228,8 +235,12 @@ list(
   target_slope_100m,
   target_depth_10km,
   target_slope_10km,
-  target_data_covariates
-  # target_data_analysis,
-  # target_data_analysis_dev,
-  # target_data_analysis_test
+  target_data_covariates,
+  target_data_analysis,
+  target_data_analysis_dev,
+  target_data_analysis_test,
+  target_data_spcodes,
+  target_species_to_model,
+  target_models_to_run,
+  target_model_fits
 )

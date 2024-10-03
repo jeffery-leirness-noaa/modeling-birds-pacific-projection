@@ -1,11 +1,11 @@
 default:
   data: "segmented-data.csv"
   data_covariates: "segmented-data-covariates.csv"
-  target: "data_covariates"
+  target_data_analysis: "data_analysis"
   aml_env: "azureml://registries/nccos-registry-ml/environments/nccos-leirness-modeling-birds-pacific-projection/versions/9"
 
 dev:
-  target: "data_covariates_dev"
+  target_data_analysis: "data_analysis_dev"
 
 test:
-  target: "data_covariates_test"
+  target_data_analysis: "data_analysis_test"

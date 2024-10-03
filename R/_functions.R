@@ -83,19 +83,20 @@ prepare_data_covariates <- function(.data) {
 
 prepare_data_analysis <- function(.data) {
   .data |>
-    dplyr::select(!seastate) |>
     dplyr::mutate(survey_id = stringr::str_split(survey_id, pattern = "_") |>
-                    purrr::map_chr(.f = \(x) stringr::str_flatten(x[-length(x)], collapse = "_")),
-                  # time = julian(date),
-                  yday = lubridate::yday(date),
+                    purrr::map_chr(.f = \(x) stringr::str_flatten(x[-length(x)], collapse = "_")) |>
+                    forcats::as_factor(),
+                  # jday = julian(date),
+                  # yday = lubridate::yday(date),
                   survey_area_km2_sm = seg_length_km * seg_width_km_sm,
                   survey_area_km2_lg = seg_length_km * seg_width_km_lg) |>
-    dplyr::relocate(yday, .after = date) |>
+    # dplyr::relocate(c(jday, yday), .after = date) |>
     dplyr::relocate(anmu:wgwh, .after = tidyselect::last_col()) |>
-    tibble::as_tibble() |>
-    dplyr::select(!c(transect_id, segment_id, tidyselect::starts_with("seg_"), geometry)) |>
-    dplyr::group_by(dplyr::pick(date:y)) |>
-    dplyr::summarise(dplyr::across(survey_area_km2_sm:wgwh, sum))
+    dplyr::select(!c(seg_length_km, seg_width_km_sm, seg_width_km_lg, seastate))
+  # tibble::as_tibble() |>
+  # dplyr::select(!c(transect_id, segment_id, tidyselect::starts_with("seg_"), geometry)) |>
+  # dplyr::group_by(dplyr::pick(date:y)) |>
+  # dplyr::summarise(dplyr::across(survey_area_km2_sm:wgwh, sum))
 }
 
 
@@ -113,12 +114,126 @@ sample_data <- function(.data, ..., n = NULL, prop = NULL) {
   }
 }
 
-fit_model <- function(formula, data, species_code, mgcv_select = FALSE, mgcv_gamma) {
-  parsnip::gen_additive_mod(select_features = mgcv_select,
-                            adjust_deg_free = mgcv_gamma) |>
+create_species_to_model_df <- function(.data, species_codes_df, threshold) {
+  dplyr::summarise(.data,
+                   dplyr::across(anmu:wgwh, ~ sum(.x > 0,
+                                                  na.rm = TRUE))) |>
+    tibble::as_tibble() |>
+    dplyr::select(!geometry) |>
+    tidyr::pivot_longer(cols = tidyselect::everything(),
+                        names_to = "code",
+                        names_transform = list(code = stringr::str_to_upper),
+                        values_to = "cells_with_sightings") |>
+    dplyr::filter(cells_with_sightings >= threshold) |>
+    dplyr::inner_join(y = species_codes_df, by = "code") |>
+    tidyr::drop_na(sortorder) |>
+    dplyr::mutate(code = stringr::str_to_lower(code),
+                  size_class = stringr::str_to_lower(size_class)) |>
+    dplyr::select(!marine_bird) |>
+    dplyr::arrange(sortorder)
+}
+
+
+create_model_formula_mgcv <- function(lhs, type, bs = "tp") {
+  if (type == "hindcast") {
+    vars <- c("hindcast_bbv_200",
+              "hindcast_curl",
+              "hindcast_ild_05",
+              "hindcast_ssh",
+              "hindcast_sst",
+              "hindcast_su",
+              "hindcast_sustr",
+              "hindcast_sv",
+              "hindcast_svstr",
+              "hindcast_zoo_200m_int",
+              "hindcast_zoo_100m_int",
+              "hindcast_zoo_50m_int",
+              "hindcast_chl_surf",
+              "hindcast_eke")
+  } else if (type == "reanalysis") {
+    vars <- c("reanalysis_bbv_200",
+              "reanalysis_curl",
+              "reanalysis_ild_05",
+              "reanalysis_ssh",
+              "reanalysis_sst",
+              "reanalysis_su",
+              "reanalysis_sustr",
+              "reanalysis_sv",
+              "reanalysis_svstr")
+  }
+  form_base <- stringr::str_glue(
+    lhs,
+    stringr::str_c(" ~ offset(survey_area_km2)",
+                   "platform",
+                   "s(survey_id, bs = \"re\")",
+                   "s(date_doy, bs = \"cc\")",
+                   "s(date_decimal, bs = \"{bs}\")",
+                   sep = " + ")
+  )
+  form_vars <- stringr::str_glue("s({vars}, bs = \"{bs}\")") |>
+    stringr::str_flatten(collapse = " + ")
+  stringr::str_c(form_base, form_vars, sep = " + ")
+}
+
+create_models_to_run_df <- function(df) {
+  # vars <- purrr::map(purrr::set_names(c("hindcast_", "reanalysis_")),
+  #                    .f = \(x) get(config$target_data_analysis) |>
+  #                      tibble::as_tibble() |>
+  #                      dplyr::select(tidyselect::starts_with(x)) |>
+  #                      names())
+  dplyr::select(df, sortorder, code, size_class) |>
+    tidyr::expand_grid(covariate_prefix = c("hindcast", "reanalysis"),
+                       mgcv_gamma = c(1, 2),
+                       spatial_random_effect = c(FALSE, TRUE)) |>
+    dplyr::rowwise() |>
+    dplyr::mutate(model_formula = create_model_formula_mgcv(code, type = covariate_prefix)) |>
+    dplyr::ungroup() |>
+    dplyr::filter(spatial_random_effect == FALSE,
+                  stringr::str_starts(code, pattern = "grp_", negate = TRUE)) |>
+    dplyr::slice(1:3)
+}
+
+
+fit_model <- function(model_formula, data, species_size_class, mgcv_select = FALSE, mgcv_gamma = NULL) {
+
+  survey_area_var <- stringr::str_c("survey_area_km2_", species_size_class)
+
+  lhs <- formula.tools::lhs(model_formula) |>
+    as.character()
+  op <- formula.tools::op(model_formula) |>
+    as.character()
+  rhs <- formula.tools::rhs(model_formula) |>
+    all.vars() |>
+    stringr::str_replace_all(c("survey_area_km2" = survey_area_var,
+                               "date_doy" = "date",
+                               "date_decimal" = "date")) |>
+    unique() |>
+    stringr::str_flatten(collapse = " + ")
+  preproc_formula <- stringr::str_c(lhs, op, rhs, sep = " ") |>
+    as.formula()
+
+  gam_recipe <- recipes::recipe(preproc_formula, data = tibble::as_tibble(data)) |>
+    recipes::step_date(date, features = c("doy", "decimal")) |>
+    recipes::step_rm(date) |>
+    recipes::step_rename(survey_area_km2 = !!survey_area_var) |>
+    recipes::step_log(survey_area_km2) |>
+    recipes::step_center(survey_area_km2) |>
+    recipes::step_normalize(recipes::all_numeric_predictors(), -survey_area_km2)
+
+  # recipes::prep(gam_recipe) |>
+  #   recipes::bake(new_data = NULL)
+
+  gam_model <- parsnip::gen_additive_mod(select_features = mgcv_select,
+                                         adjust_deg_free = mgcv_gamma) |>
     parsnip::set_engine("mgcv", family = mgcv::nb()) |>
-    parsnip::set_mode("regression") |>
-    parsnip::fit(formula, data = data)
+    parsnip::set_mode("regression")
+
+  gam_workflow <- workflows::workflow() |>
+    workflows::add_recipe(recipe = gam_recipe) |>
+    workflows::add_model(gam_model, formula = model_formula)
+
+  parsnip::fit(gam_workflow, data = data)
+
 }
 
 
