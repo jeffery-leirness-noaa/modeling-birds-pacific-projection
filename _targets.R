@@ -37,25 +37,12 @@ targets::tar_option_set(
   controller = crew::crew_controller_local(workers = parallel::detectCores() - 1, seconds_idle = 10)
 )
 
-# create objects needed for certain targets
-simple_model_func <- function(data, sp, dayofyear_k = -1, mgcv_gamma = 1, basis = "tp") {
-  form <- count ~ platform +
-    # s(julianday, bs = basis) +
-    # s(dayofyear, bs = "cc", k = dayofyear_k) +
-    s(depth, bs = basis)
-  mgcv::gam(form,
-            data = dplyr::rename(data, "count" = tolower(sp)),
-            family = mgcv::nb(),
-            gamma = mgcv_gamma)
-}
-values <- tibble::tibble(sp = c("bfal", "blki", "comu"))
-
 
 # specify targets ---------------------------------------------------------
 # marine bird data
 target_raw_data_bird <- targets::tar_target(
   raw_data_bird,
-  command = create_targets_data_command("segmented-data.csv",
+  command = create_targets_data_command("species-data/segmented-data.csv",
                                         local = targets_cas_local) |>
     eval() |>
     tibble::as_tibble(.name_repair = janitor::make_clean_names)
@@ -64,7 +51,7 @@ target_raw_data_bird <- targets::tar_target(
 # 1980-2010 hindcast predictor data sampled at marine bird data locations and months
 target_raw_data_wc12 <- targets::tar_target(
   raw_data_wc12,
-  command = create_targets_data_command("segmented-data-wc12_3.csv",
+  command = create_targets_data_command("species-data/segmented-data-wc12.csv",
                                         local = targets_cas_local) |>
     eval() |>
     tibble::as_tibble(.name_repair = janitor::make_clean_names)
@@ -73,7 +60,7 @@ target_raw_data_wc12 <- targets::tar_target(
 # 1980-2010 reanalysis predictor data sampled at marine bird data locations and months
 target_raw_data_wcra31 <- targets::tar_target(
   raw_data_wcra31,
-  command = create_targets_data_command("segmented-data-wcra_2.csv",
+  command = create_targets_data_command("species-data/segmented-data-wcra31.csv",
                                         local = targets_cas_local) |>
     eval() |>
     tibble::as_tibble(.name_repair = janitor::make_clean_names)
@@ -82,7 +69,7 @@ target_raw_data_wcra31 <- targets::tar_target(
 # 2011-24 reanalysis predictor data sampled at marine bird data locations and months
 target_raw_data_wcnrt <- targets::tar_target(
   raw_data_wcnrt,
-  command = create_targets_data_command("segmented-data-wcnrt.csv",
+  command = create_targets_data_command("species-data/segmented-data-wcnrt.csv",
                                         local = targets_cas_local) |>
     eval() |>
     tibble::as_tibble(.name_repair = janitor::make_clean_names)

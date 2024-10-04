@@ -2,8 +2,8 @@
 pcs <- "+proj=omerc +lat_0=39 +lonc=-125 +alpha=75 +k=0.9996 +x_0=0 +y_0=0 +gamma=75 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0"
 
 # load remote sensing boundary
-extent <- c(-133, -116, 28, 50) |> 
-  terra::ext() |> 
+extent <- c(-136, -114, 28, 50) |>
+  terra::ext() |>
   terra::project(from = "epsg:4326", to = terra::crs(pcs))
 
 # create 10 km grid based on remote sensing boundary extent
