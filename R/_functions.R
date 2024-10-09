@@ -89,11 +89,11 @@ prepare_data_analysis <- function(.data) {
                   survey_area_km2_sm = seg_length_km * seg_width_km_sm,
                   survey_area_km2_lg = seg_length_km * seg_width_km_lg) |>
     dplyr::relocate(anmu:wgwh, .after = tidyselect::last_col()) |>
-    dplyr::select(!c(transect_id, segment_id, seg_length_km, seg_width_km_sm, seg_width_km_lg, seastate))
-  # tibble::as_tibble() |>
-  # dplyr::select(!c(transect_id, segment_id, tidyselect::starts_with("seg_"), geometry)) |>
-  # dplyr::group_by(dplyr::pick(date:y)) |>
-  # dplyr::summarise(dplyr::across(survey_area_km2_sm:wgwh, sum))
+    dplyr::select(!c(transect_id, segment_id, seg_length_km, seg_width_km_sm, seg_width_km_lg, seastate)) |>
+    dplyr::group_by(dplyr::pick(cell:platform)) |>
+    dplyr::summarise(dplyr::across(survey_area_km2_sm:wgwh, \(x) sum(x, na.rm = TRUE))) |>
+    dplyr::ungroup() |>
+    dplyr::arrange(cell, date, survey_id)
 }
 
 

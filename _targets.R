@@ -72,7 +72,7 @@ target_data_bird_10km <- targets::tar_target(
       prepare_data_analysis() |>
       sf::st_as_sf(coords = c("x", "y"), crs = sf::st_crs(r)) |>
       sf::st_transform(crs = "WGS84") |>
-      sf_as_df()
+      sf_as_df(names = c("lon", "lat"))
   }
 )
 
