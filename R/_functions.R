@@ -70,14 +70,14 @@ storage_download_dir <- function(container, src, dest) {
 }
 
 
-# exclude data based on distance value?
-prepare_data_covariates <- function(.data) {
-  .data |>
-    dplyr::select(c(date:segment_id, tidyselect::starts_with(c("monthly_", "distance")))) |>
-    dplyr::mutate(distance_use = rowMeans(dplyr::across(tidyselect::starts_with("distance")))) |>
-    # dplyr::filter(distance_use == 0) |>
-    tidyr::drop_na() |>
-    dplyr::select(!tidyselect::starts_with("distance"))
+sf_as_df <- function(.data, names = NULL) {
+  if (is.null(names)) {
+    names <- c("X", "Y")
+  }
+  coords <- sf::st_coordinates(.data) |>
+    tibble::as_tibble()
+  names(coords) <- names
+  dplyr::bind_cols(coords, sf::st_drop_geometry(.data))
 }
 
 
@@ -86,17 +86,25 @@ prepare_data_analysis <- function(.data) {
     dplyr::mutate(survey_id = stringr::str_split(survey_id, pattern = "_") |>
                     purrr::map_chr(.f = \(x) stringr::str_flatten(x[-length(x)], collapse = "_")) |>
                     forcats::as_factor(),
-                  # jday = julian(date),
-                  # yday = lubridate::yday(date),
                   survey_area_km2_sm = seg_length_km * seg_width_km_sm,
                   survey_area_km2_lg = seg_length_km * seg_width_km_lg) |>
-    # dplyr::relocate(c(jday, yday), .after = date) |>
     dplyr::relocate(anmu:wgwh, .after = tidyselect::last_col()) |>
-    dplyr::select(!c(seg_length_km, seg_width_km_sm, seg_width_km_lg, seastate))
+    dplyr::select(!c(transect_id, segment_id, seg_length_km, seg_width_km_sm, seg_width_km_lg, seastate))
   # tibble::as_tibble() |>
   # dplyr::select(!c(transect_id, segment_id, tidyselect::starts_with("seg_"), geometry)) |>
   # dplyr::group_by(dplyr::pick(date:y)) |>
   # dplyr::summarise(dplyr::across(survey_area_km2_sm:wgwh, sum))
+}
+
+
+# exclude data based on distance value?
+prepare_data_covariates <- function(.data) {
+  .data |>
+    dplyr::select(c(date:segment_id, tidyselect::starts_with(c("monthly_", "distance")))) |>
+    dplyr::mutate(distance_use = rowMeans(dplyr::across(tidyselect::starts_with("distance")))) |>
+    # dplyr::filter(distance_use == 0) |>
+    tidyr::drop_na() |>
+    dplyr::select(!tidyselect::starts_with("distance"))
 }
 
 

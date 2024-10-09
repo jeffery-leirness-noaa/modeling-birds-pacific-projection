@@ -39,13 +39,41 @@ targets::tar_option_set(
 
 
 # specify targets ---------------------------------------------------------
+# 10-km prediction grid
+target_grid_10km <- targets::tar_target(
+  grid_10km,
+  command = create_targets_data_command("grid-10km.tif",
+                                        local = targets_cas_local) |>
+    eval()
+)
+
 # marine bird data
-target_raw_data_bird <- targets::tar_target(
-  raw_data_bird,
+target_data_bird_raw <- targets::tar_target(
+  data_bird_raw,
   command = create_targets_data_command("species-data/segmented-data.csv",
                                         local = targets_cas_local) |>
     eval() |>
     tibble::as_tibble(.name_repair = janitor::make_clean_names)
+)
+
+# project marine bird data onto 10-km grid and aggregate by <grid-cell, date, survey_id>
+target_data_bird_10km <- targets::tar_target(
+  data_bird_10km,
+  command = {
+    r <- terra::unwrap(grid_10km)
+    data_bird_raw_proj <- data_bird_raw |>
+      sf::st_as_sf(coords = c("lon", "lat"), crs = "WGS84") |>
+      sf::st_transform(crs = sf::st_crs(r))
+    terra::extract(r, data_bird_raw_proj, cells = TRUE, xy = TRUE, ID = FALSE) |>
+      dplyr::select(cell, x, y) |>
+      dplyr::bind_cols(data_bird_raw) |>
+      tibble::as_tibble() |>
+      dplyr::select(!c(lon, lat)) |>
+      prepare_data_analysis() |>
+      sf::st_as_sf(coords = c("x", "y"), crs = sf::st_crs(r)) |>
+      sf::st_transform(crs = "WGS84") |>
+      sf_as_df()
+  }
 )
 
 # 1980-2010 hindcast predictor data sampled at marine bird data locations and months
@@ -214,20 +242,22 @@ target_model_fits <- targets::tar_target(
 
 # submit targets ----------------------------------------------------------
 list(
-  target_raw_data_bird,
-  target_raw_data_wc12,
-  target_raw_data_wcra31,
-  target_raw_data_wcnrt,
-  target_depth_100m,
-  target_slope_100m,
-  target_depth_10km,
-  target_slope_10km,
-  target_data_covariates,
-  target_data_analysis,
-  target_data_analysis_dev,
-  target_data_analysis_test,
-  target_data_spcodes,
-  target_species_to_model,
-  target_models_to_run,
-  target_model_fits
+  target_grid_10km,
+  target_data_bird_raw,
+  target_data_bird_10km
+  # target_raw_data_wc12,
+  # target_raw_data_wcra31,
+  # target_raw_data_wcnrt,
+  # target_depth_100m,
+  # target_slope_100m,
+  # target_depth_10km,
+  # target_slope_10km,
+  # target_data_covariates,
+  # target_data_analysis,
+  # target_data_analysis_dev,
+  # target_data_analysis_test,
+  # target_data_spcodes,
+  # target_species_to_model,
+  # target_models_to_run,
+  # target_model_fits
 )
