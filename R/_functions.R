@@ -122,7 +122,7 @@ sample_data <- function(.data, ..., n = NULL, prop = NULL) {
   }
 }
 
-create_species_to_model_df <- function(.data, species_codes_df, threshold) {
+create_species_to_model_df <- function(.data, species_info_df, threshold) {
   dplyr::summarise(.data,
                    dplyr::across(anmu:wgwh, ~ sum(.x > 0,
                                                   na.rm = TRUE))) |>
@@ -133,7 +133,7 @@ create_species_to_model_df <- function(.data, species_codes_df, threshold) {
                         names_transform = list(code = stringr::str_to_upper),
                         values_to = "cells_with_sightings") |>
     dplyr::filter(cells_with_sightings >= threshold) |>
-    dplyr::inner_join(y = species_codes_df, by = "code") |>
+    dplyr::inner_join(y = species_info_df, by = "code") |>
     tidyr::drop_na(sortorder) |>
     dplyr::mutate(code = stringr::str_to_lower(code),
                   size_class = stringr::str_to_lower(size_class)) |>
@@ -153,11 +153,9 @@ create_model_formula_mgcv <- function(lhs, type, bs = "tp") {
               "hindcast_sustr",
               "hindcast_sv",
               "hindcast_svstr",
-              "hindcast_zoo_200m_int",
-              "hindcast_zoo_100m_int",
-              "hindcast_zoo_50m_int",
+              "hindcast_eke",
               "hindcast_chl_surf",
-              "hindcast_eke")
+              "hindcast_zoo_50m_int")
   } else if (type == "reanalysis") {
     vars <- c("reanalysis_bbv_200",
               "reanalysis_curl",

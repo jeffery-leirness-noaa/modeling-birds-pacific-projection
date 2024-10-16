@@ -190,9 +190,9 @@ target_data_analysis_test <- targets::tar_target(
 )
 
 # bird species codes
-target_data_spcodes <- targets::tar_target(
-  data_spcodes,
-  command = create_targets_data_command("species-codes.csv",
+target_data_species_info <- targets::tar_target(
+  data_species_info,
+  command = create_targets_data_command("species-data/species-info.csv",
                                         local = targets_cas_local) |>
     eval() |>
     tibble::as_tibble(.name_repair = janitor::make_clean_names)
@@ -202,7 +202,7 @@ target_data_spcodes <- targets::tar_target(
 target_species_to_model <- targets::tar_target(
   species_to_model,
   command = create_species_to_model_df(data_analysis,
-                                       species_codes_df = data_spcodes,
+                                       species_info_df = data_species_info,
                                        threshold = 50)
 )
 
@@ -244,7 +244,7 @@ target_model_fits <- targets::tar_target(
 list(
   target_grid_10km,
   target_data_bird_raw,
-  target_data_bird_10km
+  target_data_bird_10km,
   # target_raw_data_wc12,
   # target_raw_data_wcra31,
   # target_raw_data_wcnrt,
@@ -256,7 +256,7 @@ list(
   # target_data_analysis,
   # target_data_analysis_dev,
   # target_data_analysis_test,
-  # target_data_spcodes,
+  target_data_species_info
   # target_species_to_model,
   # target_models_to_run,
   # target_model_fits
