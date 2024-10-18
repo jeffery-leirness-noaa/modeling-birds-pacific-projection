@@ -81,6 +81,8 @@ sf_as_df <- function(.data, names = NULL) {
 }
 
 
+# need to use hablar::sum_ to ensure that columns with all NAs are not changed
+# to 0s during the aggregation
 prepare_data_analysis <- function(.data) {
   .data |>
     dplyr::mutate(survey_id = stringr::str_split(survey_id, pattern = "_") |>
@@ -91,7 +93,7 @@ prepare_data_analysis <- function(.data) {
     dplyr::relocate(anmu:wgwh, .after = tidyselect::last_col()) |>
     dplyr::select(!c(transect_id, segment_id, seg_length_km, seg_width_km_sm, seg_width_km_lg, seastate)) |>
     dplyr::group_by(dplyr::pick(cell:platform)) |>
-    dplyr::summarise(dplyr::across(survey_area_km2_sm:wgwh, \(x) sum(x, na.rm = TRUE))) |>
+    dplyr::summarise(dplyr::across(survey_area_km2_sm:wgwh, hablar::sum_)) |>
     dplyr::ungroup() |>
     dplyr::arrange(cell, date, survey_id)
 }
