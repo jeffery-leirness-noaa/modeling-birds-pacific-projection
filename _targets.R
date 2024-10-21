@@ -47,7 +47,7 @@ target_grid_10km <- targets::tar_target(
     eval()
 )
 
-# marine bird data
+# "raw" marine bird data
 target_data_bird_raw <- targets::tar_target(
   data_bird_raw,
   command = create_targets_data_command("species-data/segmented-data.csv",
@@ -59,27 +59,12 @@ target_data_bird_raw <- targets::tar_target(
 # project marine bird data onto 10-km grid and aggregate by <grid-cell, date, survey_id>
 target_data_bird_10km <- targets::tar_target(
   data_bird_10km,
-  command = {
-    r <- terra::unwrap(grid_10km)
-    data_bird_raw_proj <- data_bird_raw |>
-      sf::st_as_sf(coords = c("lon", "lat"), crs = "WGS84") |>
-      sf::st_transform(crs = sf::st_crs(r))
-    terra::extract(r, data_bird_raw_proj, cells = TRUE, xy = TRUE, ID = FALSE) |>
-      dplyr::select(cell, x, y) |>
-      dplyr::bind_cols(data_bird_raw) |>
-      tibble::as_tibble() |>
-      dplyr::select(!c(lon, lat)) |>
-      prepare_data_analysis() |>
-      sf::st_as_sf(coords = c("x", "y"), crs = sf::st_crs(r)) |>
-      sf::st_transform(crs = "WGS84") |>
-      sf_as_df(names = c("lon", "lat")) |>
-      tibble::rowid_to_column()
-  }
+  command = prepare_data(data_bird_raw, grid = terra::unwrap(grid_10km))
 )
 
 # 1980-2010 hindcast predictor data sampled at marine bird data locations and months
-target_raw_data_wc12 <- targets::tar_target(
-  raw_data_wc12,
+target_data_wc12 <- targets::tar_target(
+  data_wc12,
   command = create_targets_data_command("species-data/segmented-data-wc12.csv",
                                         local = targets_cas_local) |>
     eval() |>
@@ -87,8 +72,8 @@ target_raw_data_wc12 <- targets::tar_target(
 )
 
 # 1980-2010 reanalysis predictor data sampled at marine bird data locations and months
-target_raw_data_wcra31 <- targets::tar_target(
-  raw_data_wcra31,
+target_data_wcra31 <- targets::tar_target(
+  data_wcra31,
   command = create_targets_data_command("species-data/segmented-data-wcra31.csv",
                                         local = targets_cas_local) |>
     eval() |>
@@ -96,17 +81,17 @@ target_raw_data_wcra31 <- targets::tar_target(
 )
 
 # 2011-24 reanalysis predictor data sampled at marine bird data locations and months
-target_raw_data_wcnrt <- targets::tar_target(
-  raw_data_wcnrt,
+target_data_wcnrt <- targets::tar_target(
+  data_wcnrt,
   command = create_targets_data_command("species-data/segmented-data-wcnrt.csv",
                                         local = targets_cas_local) |>
     eval() |>
     tibble::as_tibble(.name_repair = janitor::make_clean_names)
 )
 
-# depth raster layer (100-m resolution)
-target_depth_100m <- targets::tar_target(
-  depth_100m,
+# "raw" depth raster layer
+target_data_depth_raw <- targets::tar_target(
+  data_depth_raw,
   command = create_targets_data_command("depth-100m.tif",
                                         local = targets_cas_local) |>
     eval()
