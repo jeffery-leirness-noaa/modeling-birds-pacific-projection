@@ -42,7 +42,7 @@ targets::tar_option_set(
 # 10-km prediction grid
 target_grid_10km <- targets::tar_target(
   grid_10km,
-  command = create_targets_data_command("grid-10km.tif",
+  command = create_targets_data_command("grid-10km.tiff",
                                         local = targets_cas_local) |>
     eval()
 )
@@ -164,15 +164,13 @@ target_data_analysis <- targets::tar_target(
 # subset of analysis dataset to use for development purposes
 target_data_analysis_dev <- targets::tar_target(
   data_analysis_dev,
-  command = data_analysis |>
-    sample_data(platform, prop = 0.1)
+  command = sample_data(data_analysis, platform, prop = 0.1)
 )
 
 # subset of analysis dataset to use for testing purposes
 target_data_analysis_test <- targets::tar_target(
   data_analysis_test,
-  command = data_analysis |>
-    sample_data(platform, prop = 0.4)
+  command = sample_data(data_analysis, platform, prop = 0.4)
 )
 
 # bird species codes
