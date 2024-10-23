@@ -41,7 +41,7 @@ fit_model <- function(model_formula, data, species_size_class, mgcv_select = FAL
 }
 
 
-diagnostic_plot <- function(model, se = FALSE) {
+plot_marginal_effects <- function(model, se = FALSE) {
   # marginal effects plots (i.e., term plots) with standard errors
   mgcv::plot.gam(model, rug = TRUE, se = se, pages = 1, scale = 0, shade = TRUE)
 }
