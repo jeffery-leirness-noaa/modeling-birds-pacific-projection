@@ -74,7 +74,7 @@ target_data_bird_10km <- targets::tar_target(
 # 1980-2010 hindcast predictor data sampled at marine bird data locations and months
 target_data_bird_10km_wc12 <- targets::tar_target(
   data_bird_10km_wc12,
-  command = create_targets_data_command("species-data/segmented-data-wc12.csv",
+  command = create_targets_data_command("species-data/segmented-data-10km-daily-wc12.csv",
                                         local = targets_cas_local) |>
     eval() |>
     tibble::as_tibble(.name_repair = janitor::make_clean_names)
@@ -83,7 +83,7 @@ target_data_bird_10km_wc12 <- targets::tar_target(
 # 1980-2010 reanalysis predictor data sampled at marine bird data locations and months
 target_data_bird_10km_wcra31 <- targets::tar_target(
   data_bird_10km_wcra31,
-  command = create_targets_data_command("species-data/segmented-data-wcra31.csv",
+  command = create_targets_data_command("species-data/segmented-data-10km-daily-wcra31.csv",
                                         local = targets_cas_local) |>
     eval() |>
     tibble::as_tibble(.name_repair = janitor::make_clean_names)
@@ -92,7 +92,7 @@ target_data_bird_10km_wcra31 <- targets::tar_target(
 # 2011-24 reanalysis predictor data sampled at marine bird data locations and months
 target_data_bird_10km_wcnrt <- targets::tar_target(
   data_bird_10km_wcnrt,
-  command = create_targets_data_command("species-data/segmented-data-wcnrt.csv",
+  command = create_targets_data_command("species-data/segmented-data-10km-daily-wcnrt.csv",
                                         local = targets_cas_local) |>
     eval() |>
     tibble::as_tibble(.name_repair = janitor::make_clean_names)
@@ -188,26 +188,26 @@ target_data_analysis_split <- targets::tar_target(
   command = rsample::initial_split(data_analysis)
 )
 
-# create model recipe
-target_model_recipe <- targets::tar_target(
-  model_recipe,
-  command = define_model_recipe()
-)
-
-# compare hindcast vs. reanalysis
-
-
-# testing
-target_test <- targets::tar_target(
-  test,
-  command = {workflowsets::workflow_set()}
-)
-target_model_tests <- targets::tar_target(
-  model_tests,
-  command = {},
-  pattern = workflowsets::workflow_map(),
-  iteration = "list"
-)
+# # create model recipe
+# target_model_recipe <- targets::tar_target(
+#   model_recipe,
+#   command = define_model_recipe()
+# )
+#
+# # compare hindcast vs. reanalysis
+#
+#
+# # testing
+# target_test <- targets::tar_target(
+#   test,
+#   command = {workflowsets::workflow_set()}
+# )
+# target_model_tests <- targets::tar_target(
+#   model_tests,
+#   command = {},
+#   pattern = workflowsets::workflow_map(),
+#   iteration = "list"
+# )
 
 # fit models
 target_model_fits <- targets::tar_target(
@@ -234,12 +234,12 @@ list(
   target_data_species_info,
   target_data_bird_raw,
   target_data_bird_10km,
-  # target_data_bird_10km_wc12,
+  target_data_bird_10km_wc12,
   # target_data_bird_10km_wcra31,
   # target_data_bird_10km_wcnrt,
   target_data_bathy_raw,
   target_data_bathy_10km,
-  target_data_slope_10km,
+  target_data_slope_10km
   # target_data_covariates,
   # target_data_analysis,
   # target_data_analysis_dev,
