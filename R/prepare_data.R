@@ -34,7 +34,7 @@ prepare_data_covariates <- function(data) {
   data |>
     dplyr::select(c(date:segment_id, tidyselect::starts_with(c("monthly_", "distance")))) |>
     dplyr::mutate(distance_use = rowMeans(dplyr::across(tidyselect::starts_with("distance")))) |>
-    # dplyr::filter(distance_use == 0) |>
+    # dplyr::filter(distance_use <= sqrt(200)) |>
     tidyr::drop_na() |>
     dplyr::select(!tidyselect::starts_with("distance"))
 }
