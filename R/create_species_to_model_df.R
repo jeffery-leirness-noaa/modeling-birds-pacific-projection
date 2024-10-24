@@ -1,5 +1,5 @@
-create_species_to_model_df <- function(.data, species_info_df, threshold) {
-  dplyr::summarise(.data,
+create_species_to_model_df <- function(data, species_info_df, threshold) {
+  dplyr::summarise(data,
                    dplyr::across(anmu:wgwh, ~ sum(.x > 0,
                                                   na.rm = TRUE))) |>
     tibble::as_tibble() |>

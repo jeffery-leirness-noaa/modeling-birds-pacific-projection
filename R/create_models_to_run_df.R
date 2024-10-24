@@ -1,5 +1,5 @@
-create_models_to_run_df <- function(df) {
-  dplyr::select(df, sortorder, code, size_class) |>
+create_models_to_run_df <- function(data) {
+  dplyr::select(data, sortorder, code, size_class) |>
     tidyr::expand_grid(covariate_prefix = c("hindcast", "reanalysis"),
                        basis = "tp",
                        mgcv_gamma = c(1, 2, 3),

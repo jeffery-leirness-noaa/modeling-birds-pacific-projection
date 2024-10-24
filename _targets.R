@@ -47,6 +47,15 @@ target_grid_10km <- targets::tar_target(
     eval()
 )
 
+# bird species codes
+target_data_species_info <- targets::tar_target(
+  data_species_info,
+  command = create_targets_data_command("species-data/species-info.csv",
+                                        local = targets_cas_local) |>
+    eval() |>
+    tibble::as_tibble(.name_repair = janitor::make_clean_names)
+)
+
 # "raw" marine bird data
 target_data_bird_raw <- targets::tar_target(
   data_bird_raw,
@@ -63,8 +72,8 @@ target_data_bird_10km <- targets::tar_target(
 )
 
 # 1980-2010 hindcast predictor data sampled at marine bird data locations and months
-target_data_wc12 <- targets::tar_target(
-  data_wc12,
+target_data_bird_10km_wc12 <- targets::tar_target(
+  data_bird_10km_wc12,
   command = create_targets_data_command("species-data/segmented-data-wc12.csv",
                                         local = targets_cas_local) |>
     eval() |>
@@ -72,8 +81,8 @@ target_data_wc12 <- targets::tar_target(
 )
 
 # 1980-2010 reanalysis predictor data sampled at marine bird data locations and months
-target_data_wcra31 <- targets::tar_target(
-  data_wcra31,
+target_data_bird_10km_wcra31 <- targets::tar_target(
+  data_bird_10km_wcra31,
   command = create_targets_data_command("species-data/segmented-data-wcra31.csv",
                                         local = targets_cas_local) |>
     eval() |>
@@ -81,55 +90,45 @@ target_data_wcra31 <- targets::tar_target(
 )
 
 # 2011-24 reanalysis predictor data sampled at marine bird data locations and months
-target_data_wcnrt <- targets::tar_target(
-  data_wcnrt,
+target_data_bird_10km_wcnrt <- targets::tar_target(
+  data_bird_10km_wcnrt,
   command = create_targets_data_command("species-data/segmented-data-wcnrt.csv",
                                         local = targets_cas_local) |>
     eval() |>
     tibble::as_tibble(.name_repair = janitor::make_clean_names)
 )
 
-# "raw" depth raster layer
-target_data_depth_raw <- targets::tar_target(
-  data_depth_raw,
-  command = create_targets_data_command("depth-100m.tif",
+# "raw" bathymetry raster layer
+target_data_bathy_raw <- targets::tar_target(
+  data_bathy_raw,
+  command = create_targets_data_command("environmental-data/gebco_2024_sub_ice_n90.0_s0.0_w-180.0_e-90.0.tiff",
                                         local = targets_cas_local) |>
     eval()
 )
 
-# create slope raster layer (100-m resolution)
-target_slope_100m <- targets::tar_target(
-  slope_100m,
-  command = MultiscaleDTM::SlpAsp(terra::unwrap(depth_100m), w = c(3, 3),
+# project bathymetry layer onto 10-km grid
+target_data_bathy_10km <- targets::tar_target(
+  data_bathy_10km,
+  command = terra::project(terra::unwrap(data_bathy_raw),
+                           y = terra::unwrap(grid_10km)) |>
+    terra::wrap(),
+  storage = "worker",
+  retrieval = "worker"
+)
+
+# create slope raster layer
+target_data_slope_10km <- targets::tar_target(
+  data_slope_10km,
+  command = MultiscaleDTM::SlpAsp(terra::unwrap(data_bathy_10km), w = c(3, 3),
                                   method = "queen", metrics = "slope") |>
     terra::wrap(),
   storage = "worker",
   retrieval = "worker"
 )
 
-# block average 100-m resolution depth layer to 10-km resolution
-target_depth_10km <- targets::tar_target(
-  depth_10km,
-  command = terra::aggregate(terra::unwrap(depth_100m), fact = 100,
-                             fun = "mean", na.rm = TRUE) |>
-    terra::wrap(),
-  storage = "worker",
-  retrieval = "worker"
-)
-
-# block average 100-m resolution slope layer to 10-km resolution
-target_slope_10km <- targets::tar_target(
-  slope_10km,
-  command = terra::aggregate(terra::unwrap(slope_100m), fact = 100,
-                             fun = "mean", na.rm = TRUE) |>
-    terra::wrap(),
-  storage = "worker",
-  retrieval = "worker"
-)
-
-# combine covariate data with marine bird data
-target_data_covariates <- targets::tar_target(
-  data_covariates,
+# create analysis dataset
+target_data_analysis <- targets::tar_target(
+  data_analysis,
   command = {
     by <- c("date", "survey_id", "transect_id", "segment_id")
     hindcast <- prepare_data_covariates(raw_data_wc12) |>
@@ -155,31 +154,18 @@ target_data_covariates <- targets::tar_target(
   }
 )
 
-# create analysis dataset
-target_data_analysis <- targets::tar_target(
-  data_analysis,
-  command = prepare_data_analysis(data_covariates)
-)
-
 # subset of analysis dataset to use for development purposes
 target_data_analysis_dev <- targets::tar_target(
   data_analysis_dev,
-  command = sample_data(data_analysis, platform, prop = 0.1)
+  command = rsample::initial_split(data_analysis, prop = 0.1, strata = platform) |>
+    rsample::training()
 )
 
 # subset of analysis dataset to use for testing purposes
 target_data_analysis_test <- targets::tar_target(
   data_analysis_test,
-  command = sample_data(data_analysis, platform, prop = 0.4)
-)
-
-# bird species codes
-target_data_species_info <- targets::tar_target(
-  data_species_info,
-  command = create_targets_data_command("species-data/species-info.csv",
-                                        local = targets_cas_local) |>
-    eval() |>
-    tibble::as_tibble(.name_repair = janitor::make_clean_names)
+  command = rsample::initial_split(data_analysis, prop = 0.4, strata = platform) |>
+    rsample::training()
 )
 
 # create data frame of species to model
@@ -196,16 +182,34 @@ target_models_to_run <- targets::tar_target(
   command = create_models_to_run_df(species_to_model)
 )
 
+# create initial data split
+target_data_analysis_split <- targets::tar_target(
+  data_analysis_split,
+  command = rsample::initial_split(data_analysis)
+)
+
+# create model recipe
+target_model_recipe <- targets::tar_target(
+  model_recipe,
+  command = define_model_recipe()
+)
+
+# compare hindcast vs. reanalysis
+
+
+# testing
+target_test <- targets::tar_target(
+  test,
+  command = {workflowsets::workflow_set()}
+)
+target_model_tests <- targets::tar_target(
+  model_tests,
+  command = {},
+  pattern = workflowsets::workflow_map(),
+  iteration = "list"
+)
+
 # fit models
-# target_model <- tarchetypes::tar_map(
-#   values = models_to_run |>
-#     dplyr::filter(spatial_random_effect == FALSE,
-#                   stringr::str_starts(code, pattern = "grp_", negate = TRUE)),
-#   targets::tar_target(
-#     model,
-#     command = {}
-#   )
-# )
 target_model_fits <- targets::tar_target(
   model_fits,
   command = fit_model(as.formula(models_to_run$model_formula),
@@ -227,20 +231,19 @@ target_model_fits <- targets::tar_target(
 # submit targets ----------------------------------------------------------
 list(
   target_grid_10km,
+  target_data_species_info,
   target_data_bird_raw,
   target_data_bird_10km,
-  # target_raw_data_wc12,
-  # target_raw_data_wcra31,
-  # target_raw_data_wcnrt,
-  # target_depth_100m,
-  # target_slope_100m,
-  # target_depth_10km,
-  # target_slope_10km,
+  # target_data_bird_10km_wc12,
+  # target_data_bird_10km_wcra31,
+  # target_data_bird_10km_wcnrt,
+  target_data_bathy_raw,
+  target_data_bathy_10km,
+  target_data_slope_10km,
   # target_data_covariates,
   # target_data_analysis,
   # target_data_analysis_dev,
   # target_data_analysis_test,
-  target_data_species_info
   # target_species_to_model,
   # target_models_to_run,
   # target_model_fits
