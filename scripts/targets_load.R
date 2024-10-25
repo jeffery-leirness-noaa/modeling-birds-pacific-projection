@@ -1,16 +1,27 @@
 targets::tar_make()
 
+targets::tar_load_everything()
+
 targets::tar_load_globals()
 tmp <- c("grid_10km",
+         "data_species_info",
          "data_bird_raw",
          "data_bird_10km",
+         "data_bird_10km_wc12",
          "data_bathy_10km",
          "data_slope_10km",
-         "data_species_info")
+         "data_analysis",
+         "data_analysis_dev",
+         "data_analysis_test",
+         "species_to_model",
+         "models_to_run",
+         "model_fits")
 for (i in seq(along = tmp)) {
   assign(tmp[i], targets::tar_read_raw(tmp[i]))
 }
 
+workflows::extract_preprocessor(model_workflows[[1]]) |>
+  recipes::prep()
 
 data_bird_10km |>
   dplyr::mutate(grp = ifelse(date >= "2011-01-01", "2011_2017", "1980_2010")) |>

@@ -68,7 +68,7 @@ target_data_bird_raw <- targets::tar_target(
 # project marine bird data onto 10-km grid and aggregate by <grid-cell, date, survey_id>
 target_data_bird_10km <- targets::tar_target(
   data_bird_10km,
-  command = prepare_data(data_bird_raw, grid = terra::unwrap(grid_10km))
+  command = prepare_data_bird(data_bird_raw, grid = terra::unwrap(grid_10km))
 )
 
 # 1980-2010 hindcast predictor data sampled at marine bird data locations and months
@@ -77,7 +77,8 @@ target_data_bird_10km_wc12 <- targets::tar_target(
   command = create_targets_data_command("species-data/segmented-data-10km-daily-wc12.csv",
                                         local = targets_cas_local) |>
     eval() |>
-    tibble::as_tibble(.name_repair = janitor::make_clean_names)
+    tibble::as_tibble(.name_repair = janitor::make_clean_names) |>
+    prepare_data_covariates(label = "hindcast")
 )
 
 # 1980-2010 reanalysis predictor data sampled at marine bird data locations and months
@@ -86,7 +87,8 @@ target_data_bird_10km_wcra31 <- targets::tar_target(
   command = create_targets_data_command("species-data/segmented-data-10km-daily-wcra31.csv",
                                         local = targets_cas_local) |>
     eval() |>
-    tibble::as_tibble(.name_repair = janitor::make_clean_names)
+    tibble::as_tibble(.name_repair = janitor::make_clean_names) |>
+    prepare_data_covariates(label = "reanalysis")
 )
 
 # 2011-24 reanalysis predictor data sampled at marine bird data locations and months
@@ -95,7 +97,8 @@ target_data_bird_10km_wcnrt <- targets::tar_target(
   command = create_targets_data_command("species-data/segmented-data-10km-daily-wcnrt.csv",
                                         local = targets_cas_local) |>
     eval() |>
-    tibble::as_tibble(.name_repair = janitor::make_clean_names)
+    tibble::as_tibble(.name_repair = janitor::make_clean_names) |>
+    prepare_data_covariates(label = "reanalysis")
 )
 
 # "raw" bathymetry raster layer
@@ -129,29 +132,10 @@ target_data_slope_10km <- targets::tar_target(
 # create analysis dataset
 target_data_analysis <- targets::tar_target(
   data_analysis,
-  command = {
-    by <- c("date", "survey_id", "transect_id", "segment_id")
-    hindcast <- prepare_data_covariates(raw_data_wc12) |>
-      dplyr::rename_with(~ stringr::str_replace(.x, pattern = "monthly_",
-                                                replacement = "hindcast_"),
-                         .cols = tidyselect::starts_with("monthly_"))
-    reanalysis <- dplyr::bind_rows(prepare_data_covariates(raw_data_wcra31),
-                                   prepare_data_covariates(raw_data_wcnrt)) |>
-      dplyr::rename_with(~ stringr::str_replace(.x, pattern = "monthly_",
-                                                replacement = "reanalysis_"),
-                         .cols = tidyselect::starts_with("monthly_"))
-    dat <- dplyr::left_join(raw_data_bird, y = hindcast, by = by) |>
-      dplyr::left_join(y = reanalysis, by = by) |>
-      sf::st_as_sf(coords = c("lon", "lat"), crs = "WGS84")
-    r <- list(depth_10km, slope_10km) |>
-      purrr::map(.f = terra::unwrap) |>
-      terra::rast()
-    names(r) <- c("depth", "slope")
-    dat <- sf::st_transform(dat, crs = terra::crs(r))
-    temp <- terra::extract(r, dat, cells = TRUE, xy = TRUE, ID = FALSE)
-    dplyr::bind_cols(dat, temp) |>
-      dplyr::relocate(geometry, .after = tidyselect::last_col())
-  }
+  command = prepare_data_analysis(data_bird_10km,
+                                  data_covariates = list(data_bird_10km_wc12),
+                                  add = list(depth = data_bathy_10km,
+                                             slope = data_slope_10km))
 )
 
 # subset of analysis dataset to use for development purposes
@@ -179,21 +163,46 @@ target_species_to_model <- targets::tar_target(
 # create data frame of models to run
 target_models_to_run <- targets::tar_target(
   models_to_run,
-  command = create_models_to_run_df(species_to_model)
+  command = create_models_to_run_df(species_to_model) |>
+    dplyr::filter(!spatial_random_effect,
+                  covariate_prefix == "hindcast",
+                  stringr::str_starts(code, pattern = "grp_", negate = TRUE)) |>
+    dplyr::slice(1:2)
 )
 
-# create initial data split
+# define initial data split
 target_data_analysis_split <- targets::tar_target(
   data_analysis_split,
   command = rsample::initial_split(data_analysis)
 )
 
-# # create model recipe
-# target_model_recipe <- targets::tar_target(
-#   model_recipe,
-#   command = define_model_recipe()
-# )
-#
+# define spatial data resamples
+target_data_analysis_resamples_spatial <- targets::tar_target(
+  data_analysis_resamples_spatial,
+  command = rsample::training(data_analysis_split) |>
+    spatialsample::spatial_block_cv(v = 5)
+)
+
+# define temporal data resamples
+target_data_analysis_resamples_temporal <- targets::tar_target(
+  data_analysis_resamples_temporal,
+  command = rsample::training(data_analysis_split) |>
+    dplyr::arrange(date, cell, survey_id) |>
+    rsample::sliding_period(index = date, period = "year", lookback = 2)
+)
+
+# define model workflows
+target_model_workflows <- targets::tar_target(
+  model_workflows,
+  command = define_model_workflow(as.formula(models_to_run$model_formula),
+                                  data = data_analysis_dev,
+                                  species_size_class = models_to_run$size_class,
+                                  mgcv_select = TRUE,
+                                  mgcv_gamma = models_to_run$mgcv_gamma),
+  pattern = map(models_to_run),
+  iteration = "list"
+)
+
 # # compare hindcast vs. reanalysis
 #
 #
@@ -216,7 +225,8 @@ target_model_fits <- targets::tar_target(
                       data = data_analysis_dev,
                       species_size_class = models_to_run$size_class,
                       mgcv_select = TRUE,
-                      mgcv_gamma = models_to_run$mgcv_gamma),
+                      mgcv_gamma = models_to_run$mgcv_gamma,
+                      fit = FALSE),
   pattern = map(models_to_run),
   iteration = "list"
 )
@@ -239,12 +249,12 @@ list(
   # target_data_bird_10km_wcnrt,
   target_data_bathy_raw,
   target_data_bathy_10km,
-  target_data_slope_10km
-  # target_data_covariates,
-  # target_data_analysis,
-  # target_data_analysis_dev,
-  # target_data_analysis_test,
-  # target_species_to_model,
-  # target_models_to_run,
+  target_data_slope_10km,
+  target_data_analysis,
+  target_data_analysis_dev,
+  target_data_analysis_test,
+  target_species_to_model,
+  target_models_to_run,
+  target_model_workflows
   # target_model_fits
 )

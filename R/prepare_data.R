@@ -1,6 +1,6 @@
 # need to use hablar::sum_ to ensure that columns with all NAs are not changed
 # to 0s during the aggregation
-prepare_data <- function(data, grid) {
+prepare_data_bird <- function(data, grid) {
   data_proj <- data |>
     sf::st_as_sf(coords = c("lon", "lat"), crs = "WGS84") |>
     sf::st_transform(crs = sf::st_crs(grid))
@@ -30,11 +30,37 @@ prepare_data <- function(data, grid) {
 
 
 # exclude data based on distance value?
-prepare_data_covariates <- function(data) {
+prepare_data_covariates <- function(data, label) {
+  vars <- c("bbv_200", "curl", "ild_05", "ssh", "sst", "su", "sv", "sustr",
+            "svstr", "eke", "chl_surf", "zoo_50m_int", "zoo_100m_int",
+            "zoo_200m_int")
   data |>
-    dplyr::select(c(date:segment_id, tidyselect::starts_with(c("monthly_", "distance")))) |>
-    dplyr::mutate(distance_use = rowMeans(dplyr::across(tidyselect::starts_with("distance")))) |>
-    # dplyr::filter(distance_use <= sqrt(200)) |>
-    tidyr::drop_na() |>
-    dplyr::select(!tidyselect::starts_with("distance"))
+    dplyr::rename_with(.f = ~ stringr::str_c(label, .x, sep = "_"),
+                       .cols = tidyselect::any_of(vars)) |>
+    dplyr::select(c(rowid, cell, date, survey_id,
+                    tidyselect::starts_with(label), "distance"))
+  # dplyr::mutate(distance_use = rowMeans(dplyr::across(tidyselect::starts_with("distance")))) |>
+  # dplyr::filter(distance_use <= sqrt(200)) |>
+  # tidyr::drop_na()
+  # dplyr::select(!tidyselect::starts_with("distance"))
+}
+
+
+prepare_data_analysis <- function(data_bird, data_covariates, add) {
+  join_by <- c("rowid", "cell", "date", "survey_id")
+  data <- data_bird
+  for (i in seq(along = data_covariates)) {
+    data <- dplyr::left_join(data, y = data_covariates[[i]], by = join_by)
+  }
+  r <- add |>
+    purrr::map(.f = terra::unwrap) |>
+    terra::rast()
+  names(r) <- names(add)
+  data <- data |>
+    dplyr::mutate(survey_id = forcats::as_factor(survey_id)) |>
+    sf::st_as_sf(coords = c("lon", "lat"), crs = "WGS84") |>
+    sf::st_transform(crs = terra::crs(r))
+  temp <- terra::extract(r, data, xy = TRUE, ID = FALSE)
+  dplyr::bind_cols(data, temp) |>
+    dplyr::relocate(geometry, .after = tidyselect::last_col())
 }
