@@ -8,6 +8,11 @@ create_targets_data_command <- function(file_name, local = TRUE) {
     } else if (ext %in% c("tif", "tiff")) {
       fs::path(opt$dir_in, !!file_name) |>
         terra::rast() |>
+        terra::wrap() |>
+        rlang::expr()
+    } else if (ext == "gpkg") {
+      fs::path(opt$dir_in, !!file_name) |>
+        sf::read_sf() |>
         rlang::expr()
     }
   } else {
