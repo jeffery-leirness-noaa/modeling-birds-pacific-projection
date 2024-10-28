@@ -27,7 +27,7 @@ if (targets_cas_local) {
     ))
 }
 targets::tar_option_set(
-  packages = c("qs", "sf", "terra"),
+  packages = c("qs", "sf", "terra", "workflows"),
   format = "qs",
   repository = repository,
   memory = "transient",
@@ -152,24 +152,6 @@ target_data_analysis_test <- targets::tar_target(
     rsample::training()
 )
 
-# create data frame of species to model
-target_species_to_model <- targets::tar_target(
-  species_to_model,
-  command = create_species_to_model_df(data_analysis,
-                                       species_info_df = data_species_info,
-                                       threshold = 50)
-)
-
-# create data frame of models to run
-target_models_to_run <- targets::tar_target(
-  models_to_run,
-  command = create_models_to_run_df(species_to_model) |>
-    dplyr::filter(!spatial_random_effect,
-                  covariate_prefix == "hindcast",
-                  stringr::str_starts(code, pattern = "grp_", negate = TRUE)) |>
-    dplyr::slice(1:2)
-)
-
 # define initial data split
 target_data_analysis_split <- targets::tar_target(
   data_analysis_split,
@@ -186,9 +168,28 @@ target_data_analysis_resamples_spatial <- targets::tar_target(
 # define temporal data resamples
 target_data_analysis_resamples_temporal <- targets::tar_target(
   data_analysis_resamples_temporal,
-  command = rsample::training(data_analysis_split) |>
-    dplyr::arrange(date, cell, survey_id) |>
-    rsample::sliding_period(index = date, period = "year", lookback = 2)
+  command = data_analysis |>
+    dplyr::filter(date < "2011-01-01") |>
+    dplyr::arrange(date, survey_id) |>
+    rolling_origin_prop_splits(prop = 0.15)
+)
+
+# create data frame of species to model
+target_species_to_model <- targets::tar_target(
+  species_to_model,
+  command = create_species_to_model_df(data_analysis,
+                                       species_info_df = data_species_info,
+                                       threshold = 50)
+)
+
+# create data frame of models to run
+target_models_to_run <- targets::tar_target(
+  models_to_run,
+  command = create_models_to_run_df(species_to_model) |>
+    dplyr::filter(!spatial_random_effect,
+                  covariate_prefix == "hindcast",
+                  stringr::str_starts(code, pattern = "grp_", negate = TRUE)) |>
+    dplyr::slice(1:2)
 )
 
 # define model workflows
@@ -253,6 +254,9 @@ list(
   target_data_analysis,
   target_data_analysis_dev,
   target_data_analysis_test,
+  target_data_analysis_split,
+  target_data_analysis_resamples_spatial,
+  target_data_analysis_resamples_temporal,
   target_species_to_model,
   target_models_to_run,
   target_model_workflows

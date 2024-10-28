@@ -64,3 +64,37 @@ purrr::map_vec(ck$splits,
 
 # use ck as analysis sets and use the compliment for assessment
 # see rsample::manual_rset() and possibly rsample::compliment()
+ck <- data_analysis |>
+  dplyr::mutate(group = cut(1:nrow(data_analysis) / nrow(data_analysis),
+                            breaks = c(0, rev(seq(-1, 0, by = 0.15) * -1)))) |>
+  tidyr::nest(.by = group) |>
+  rsample::rolling_origin(initial = 1) |>
+  dplyr::pull(splits) |>
+  purrr::map(\(x) rsample::analysis(x) |>
+               tidyr::unnest(cols = data) |>
+               dplyr::pull(rowid))
+
+list(analysis = which(data_analysis$rowid %in% ck[[1]]),
+     assessment = which(!(data_analysis$rowid %in% ck[[length(ck)]]))) |>
+  rsample::make_splits(data = data_analysis)
+
+
+splits <- data_analysis |>
+  dplyr::arrange(date, survey_id) |>
+  dplyr::mutate(group = cut(1:nrow(data_analysis) / nrow(data_analysis),
+                            breaks = c(0, rev(seq(-1, 0, by = 0.15) * -1)))) |>
+  tidyr::nest(.by = group) |>
+  rsample::rolling_origin(initial = 1)
+
+splits_analysis <- purrr::map(splits$splits,
+                              \(x) rsample::analysis(x) |>
+                                tidyr::unnest(cols = data))
+
+splits_assessment <- splits$splits[[nrow(splits)]] |>
+  rsample::assessment() |>
+  tidyr::unnest(cols = data)
+
+purrr::map(splits_analysis,
+           \(x) rsample::make_splits(x, assessment = splits_assessment)) |>
+  rsample::manual_rset(ids = splits$id)
+
