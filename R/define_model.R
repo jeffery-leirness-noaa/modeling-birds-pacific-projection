@@ -46,30 +46,6 @@ define_model_workflow <- function(model_formula, data, species_size_class,
     workflows::add_model(model_spec, formula = model_formula)
 }
 
-fit_model <- function(model_formula, data, species_size_class, mgcv_select = FALSE, mgcv_gamma = NULL, fit = TRUE) {
-
-  # recipes::prep(gam_recipe) |>
-  #   recipes::bake(new_data = NULL)
-
-  gam_model <- parsnip::gen_additive_mod(select_features = !!mgcv_select,
-                                         adjust_deg_free = !!mgcv_gamma) |>
-    parsnip::set_engine("mgcv", family = mgcv::nb()) |>
-    parsnip::set_mode("regression")
-
-  gam_workflow <- workflows::workflow() |>
-    workflows::add_recipe(recipe = gam_recipe) |>
-    workflows::add_model(gam_model, formula = model_formula)
-
-  if (fit) {
-    # may want to exclude NAs in response variable before fitting
-    parsnip::fit(gam_workflow, data = data)
-  } else {
-    gam_workflow
-  }
-
-}
-
-
 plot_marginal_effects <- function(model, se = FALSE) {
   # marginal effects plots (i.e., term plots) with standard errors
   mgcv::plot.gam(model, rug = TRUE, se = se, pages = 1, scale = 0, shade = TRUE)

@@ -90,7 +90,7 @@ rsample::testing(gam_split) |> janitor::tabyl(survey_id)
 gam_grid <- dials::grid_regular(dials::adjust_deg_free(), levels = 6)
 
 block_folds <- rsample::training(gam_split) |>
-  spatialsample::spatial_block_cv()
+  spatialsample::spatial_block_cv(v = 5)
 # block_folds <- spatialsample::spatial_block_cv(dat, square = FALSE)
 spatialsample::autoplot(block_folds)
 
@@ -98,13 +98,30 @@ spatialsample::autoplot(block_folds)
 #   fit_model(data = dat, species_size_class = "lg", mgcv_select = TRUE)
 
 mod_workflow <- formula("bfal ~ offset(survey_area_km2) + platform + s(date_doy, bs = \"cc\") + s(date_decimal, bs = \"tp\")") |>
-  fit_model(data = rsample::training(gam_split),
-            species_size_class = "lg",
-            mgcv_select = TRUE,
-            mgcv_gamma = hardhat::tune(),
-            fit = FALSE)
+  define_model_workflow(data = rsample::training(gam_split),
+                        species_size_class = "lg",
+                        mgcv_select = TRUE,
+                        mgcv_gamma = 1)
 
-ck <- tune::fit_resamples(mod_workflow, resamples = block_folds)
+ck <- tune::fit_resamples(
+  mod_workflow,
+  resamples = block_folds,
+  control = tune::control_resamples(save_workflow = TRUE)
+)
+tune::extract_workflow(ck)
+tune::extract_workflow(ck) |>
+  workflows::extract_fit_engine()
+ck <- tune::fit_resamples(
+  mod_workflow,
+  resamples = block_folds,
+  control = tune::control_resamples(
+    extract = function(x) list(workflows::extract_recipe(x),
+                               workflows::extract_fit_engine(x)),
+    save_workflow = TRUE
+  )
+)
+tune::extract_workflow(ck)
+tune::collect_extracts(ck)$.extracts[[1]]
 tune::collect_metrics(ck)
 
 ck2 <- tune::tune_grid(mod_workflow, resamples = block_folds, grid = gam_grid,

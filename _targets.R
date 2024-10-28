@@ -222,13 +222,40 @@ target_model_workflows <- targets::tar_target(
 # fit models
 target_model_fits <- targets::tar_target(
   model_fits,
-  command = fit_model(as.formula(models_to_run$model_formula),
-                      data = data_analysis_dev,
-                      species_size_class = models_to_run$size_class,
-                      mgcv_select = TRUE,
-                      mgcv_gamma = models_to_run$mgcv_gamma,
-                      fit = FALSE),
-  pattern = map(models_to_run),
+  command = parsnip::fit(model_workflows, data = data_analysis_dev),
+  pattern = map(model_workflows),
+  iteration = "list"
+)
+
+# fit models via spatial resampling
+target_model_fit_resamples_spatial <- targets::tar_target(
+  model_fit_resamples_spatial,
+  command = tune::fit_resamples(
+    model_workflows,
+    resamples = data_analysis_resamples_spatial,
+    control = tune::control_resamples(
+      extract = function(x) list(workflows::extract_recipe(x),
+                                 workflows::extract_fit_engine(x)),
+      save_workflow = TRUE
+    )
+  ),
+  pattern = map(model_workflows),
+  iteration = "list"
+)
+
+# fit models via temporal resampling
+target_model_fit_resamples_temporal <- targets::tar_target(
+  model_fit_resamples_temporal,
+  command = tune::fit_resamples(
+    model_workflows,
+    resamples = data_analysis_resamples_temporal,
+    control = tune::control_resamples(
+      extract = function(x) list(workflows::extract_recipe(x),
+                                 workflows::extract_fit_engine(x)),
+      save_workflow = TRUE
+    )
+  ),
+  pattern = map(model_workflows),
   iteration = "list"
 )
 
@@ -259,6 +286,6 @@ list(
   target_data_analysis_resamples_temporal,
   target_species_to_model,
   target_models_to_run,
-  target_model_workflows
-  # target_model_fits
+  target_model_workflows,
+  target_model_fits
 )
