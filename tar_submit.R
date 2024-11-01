@@ -1,6 +1,6 @@
 source("R/submit_job.R")
 config <- config::get(file = "config.yaml")
-submit_job_rfile(
+job <- submit_job_rfile(
   rfile = "tar_make_cluster.R",
   inputs = list(dir_in = Sys.getenv("AML_DATASTORE_RAW")),
   outputs = list(
@@ -13,8 +13,11 @@ submit_job_rfile(
       targets::tar_path_store())
   ),
   environment = Sys.getenv("AML_ENVIRONMENT"),
-  compute = "nccos-vm-cluster-ds2",
+  compute = "nccos-vm-cluster-d14v2",
   experiment_name = "run-targets-tar-make",
   display_name = "run-targets-tar-make-data-prep",
   description = "Run targets::tar_make() on compute cluster."
 )
+job$studio_url
+job$status
+job$update

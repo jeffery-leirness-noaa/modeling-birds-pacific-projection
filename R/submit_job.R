@@ -1,4 +1,3 @@
-
 submit_job <- function(code = ".", command, inputs = NULL, outputs = NULL,
                        environment = NULL, compute, experiment_name,
                        display_name, description, subscription_id = NULL,
