@@ -58,7 +58,8 @@ target_data_species_info <- targets::tar_target(
   command = create_targets_data_command("species-data/species-info.csv",
                                         local = targets_cas_local) |>
     eval() |>
-    tibble::as_tibble(.name_repair = janitor::make_clean_names)
+    tibble::as_tibble(.name_repair = janitor::make_clean_names),
+  cue = targets::tar_cue("never")
 )
 
 # "raw" marine bird data
@@ -67,7 +68,8 @@ target_data_bird_raw <- targets::tar_target(
   command = create_targets_data_command("species-data/segmented-data.csv",
                                         local = targets_cas_local) |>
     eval() |>
-    tibble::as_tibble(.name_repair = janitor::make_clean_names)
+    tibble::as_tibble(.name_repair = janitor::make_clean_names),
+  cue = targets::tar_cue("never")
 )
 
 # project marine bird data onto 10-km grid and aggregate by <grid-cell, date, survey_id>
@@ -83,7 +85,8 @@ target_data_bird_10km_wc12 <- targets::tar_target(
                                         local = targets_cas_local) |>
     eval() |>
     tibble::as_tibble(.name_repair = janitor::make_clean_names) |>
-    prepare_data_covariates(label = "hindcast")
+    prepare_data_covariates(label = "hindcast"),
+  cue = targets::tar_cue("never")
 )
 
 # 1980-2010 reanalysis predictor data sampled at marine bird data locations and months
@@ -93,7 +96,8 @@ target_data_bird_10km_wcra31 <- targets::tar_target(
                                         local = targets_cas_local) |>
     eval() |>
     tibble::as_tibble(.name_repair = janitor::make_clean_names) |>
-    prepare_data_covariates(label = "reanalysis")
+    prepare_data_covariates(label = "reanalysis"),
+  cue = targets::tar_cue("never")
 )
 
 # 2011-24 reanalysis predictor data sampled at marine bird data locations and months
@@ -103,7 +107,8 @@ target_data_bird_10km_wcnrt <- targets::tar_target(
                                         local = targets_cas_local) |>
     eval() |>
     tibble::as_tibble(.name_repair = janitor::make_clean_names) |>
-    prepare_data_covariates(label = "reanalysis")
+    prepare_data_covariates(label = "reanalysis"),
+  cue = targets::tar_cue("never")
 )
 
 # "raw" bathymetry raster layer
@@ -111,7 +116,8 @@ target_data_bathy_raw <- targets::tar_target(
   data_bathy_raw,
   command = create_targets_data_command("environmental-data/gebco_2024_sub_ice_n90.0_s0.0_w-180.0_e-90.0.tiff",
                                         local = targets_cas_local) |>
-    eval()
+    eval(),
+  cue = targets::tar_cue("never")
 )
 
 # project bathymetry layer onto 10-km grid
