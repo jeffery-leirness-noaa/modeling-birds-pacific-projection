@@ -24,7 +24,8 @@ if (targets_cas_local) {
   resources <- targets::tar_resources(
     repository_cas = targets::tar_resources_repository_cas(
       envvars = c(TARGETS_AUTH_TOKEN = token$credentials$access_token)
-    ))
+    )
+  )
 }
 targets::tar_option_set(
   packages = c("qs", "sf", "terra", "workflows"),
@@ -34,7 +35,10 @@ targets::tar_option_set(
   garbage_collection = TRUE,
   resources = if (targets_cas_local) NULL else resources,
   cue = targets::tar_cue(repository = FALSE),
-  controller = crew::crew_controller_local(workers = parallel::detectCores() - 1, seconds_idle = 10)
+  controller = crew::crew_controller_local(
+    workers = parallel::detectCores() - 1,
+    seconds_idle = 10
+  )
 )
 
 
@@ -44,7 +48,8 @@ target_grid_10km <- targets::tar_target(
   grid_10km,
   command = create_targets_data_command("grid-10km.tiff",
                                         local = targets_cas_local) |>
-    eval()
+    eval(),
+  cue = targets::tar_cue("never")
 )
 
 # bird species codes
@@ -132,10 +137,14 @@ target_data_slope_10km <- targets::tar_target(
 # create analysis dataset
 target_data_analysis <- targets::tar_target(
   data_analysis,
-  command = prepare_data_analysis(data_bird_10km,
-                                  data_covariates = list(data_bird_10km_wc12),
-                                  add = list(depth = data_bathy_10km,
-                                             slope = data_slope_10km))
+  command = prepare_data_analysis(
+    data_bird_10km,
+    data_covariates = list(data_bird_10km_wc12,
+                           dplyr::bind_rows(data_bird_10km_wcra31,
+                                            data_bird_10km_wcnrt)),
+    add = list(depth = data_bathy_10km,
+               slope = data_slope_10km)
+  )
 )
 
 # subset of analysis dataset to use for development purposes
@@ -161,8 +170,9 @@ target_data_analysis_split <- targets::tar_target(
 # define spatial data resamples
 target_data_analysis_resamples_spatial <- targets::tar_target(
   data_analysis_resamples_spatial,
-  command = rsample::training(data_analysis_split) |>
-    spatialsample::spatial_block_cv(v = 5)
+  command = data_analysis |>
+    spatialsample::spatial_block_cv(v = 5) |>
+    filter_rset_data(date < "2011-01-01", .split = "assessment")
 )
 
 # define temporal data resamples
@@ -172,6 +182,12 @@ target_data_analysis_resamples_temporal <- targets::tar_target(
     dplyr::filter(date < "2011-01-01") |>
     dplyr::arrange(date, survey_id) |>
     rolling_origin_prop_splits(prop = 0.15)
+)
+
+# define bootstrap resamples
+target_data_analysis_resamples_bootstrap <- targets::tar_target(
+  data_analysis_resamples_bootstrap,
+  command = rsample::bootstraps(data_analysis, times = 10)
 )
 
 # create data frame of species to model
@@ -196,7 +212,7 @@ target_models_to_run <- targets::tar_target(
 target_model_workflows <- targets::tar_target(
   model_workflows,
   command = define_model_workflow(as.formula(models_to_run$model_formula),
-                                  data = data_analysis_dev,
+                                  data = data_analysis,
                                   species_size_class = models_to_run$size_class,
                                   mgcv_select = TRUE,
                                   mgcv_gamma = models_to_run$mgcv_gamma),
@@ -270,22 +286,25 @@ target_model_fit_resamples_temporal <- targets::tar_target(
 list(
   target_grid_10km,
   target_data_species_info,
-  target_data_bird_raw,
-  target_data_bird_10km,
-  target_data_bird_10km_wc12,
+  target_data_bird_raw
+  # target_data_bird_10km,
+  # target_data_bird_10km_wc12,
   # target_data_bird_10km_wcra31,
   # target_data_bird_10km_wcnrt,
-  target_data_bathy_raw,
-  target_data_bathy_10km,
-  target_data_slope_10km,
-  target_data_analysis,
-  target_data_analysis_dev,
-  target_data_analysis_test,
-  target_data_analysis_split,
-  target_data_analysis_resamples_spatial,
-  target_data_analysis_resamples_temporal,
-  target_species_to_model,
-  target_models_to_run,
-  target_model_workflows,
-  target_model_fits
+  # target_data_bathy_raw,
+  # target_data_bathy_10km,
+  # target_data_slope_10km,
+  # target_data_analysis,
+  # target_data_analysis_dev,
+  # target_data_analysis_test,
+  # target_data_analysis_split,
+  # target_data_analysis_resamples_spatial,
+  # target_data_analysis_resamples_temporal,
+  # target_data_analysis_resamples_bootstrap,
+  # target_species_to_model,
+  # target_models_to_run,
+  # target_model_workflows,
+  # target_model_fits
+  # target_model_fit_resamples_spatial,
+  # target_model_fit_resamples_temporal
 )
