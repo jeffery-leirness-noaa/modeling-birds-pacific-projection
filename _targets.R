@@ -37,7 +37,8 @@ targets::tar_option_set(
   cue = targets::tar_cue(repository = FALSE),
   controller = crew::crew_controller_local(
     workers = parallel::detectCores() - 1,
-    seconds_idle = 10
+    seconds_idle = 10,
+    garbage_collection = TRUE
   )
 )
 
@@ -49,7 +50,8 @@ target_grid_10km <- targets::tar_target(
   command = create_targets_data_command("grid-10km.tiff",
                                         local = targets_cas_local) |>
     eval(),
-  cue = targets::tar_cue("never")
+  cue = targets::tar_cue("never"),
+  deployment = "main"
 )
 
 # bird species codes
@@ -75,7 +77,8 @@ target_data_bird_raw <- targets::tar_target(
 # project marine bird data onto 10-km grid and aggregate by <grid-cell, date, survey_id>
 target_data_bird_10km <- targets::tar_target(
   data_bird_10km,
-  command = prepare_data_bird(data_bird_raw, grid = terra::unwrap(grid_10km))
+  command = prepare_data_bird(data_bird_raw, grid = terra::unwrap(grid_10km)),
+  deployment = "main"
 )
 
 # 1980-2010 hindcast predictor data sampled at marine bird data locations and months
@@ -111,13 +114,55 @@ target_data_bird_10km_wcnrt <- targets::tar_target(
   cue = targets::tar_cue("never")
 )
 
+# daily gfdl climate projection data
+values_gfdl <- tibble::tibble(
+  source = "gfdl",
+  variable = c("bbv_200",
+               "chl_surf",
+               "curl",
+               "eke",
+               "ild_05",
+               "ssh",
+               "sst",
+               "su",
+               "sustr",
+               "sv",
+               "svstr",
+               "zoo_50m_int",
+               "zoo_100m_int",
+               "zoo_200m_int"),
+  path = fs::path("environmental-data",
+                  source,
+                  stringr::str_c(variable, "_daily.nc"))
+) |>
+  head(n = 1)
+target_data_gfdl <- tarchetypes::tar_map(
+  values = values_gfdl,
+  targets::tar_target(
+    data_gfdl_raw,
+    command = create_targets_data_command(path,
+                                          local = targets_cas_local) |>
+      eval(),
+    deployment = "main",
+    cue = targets::tar_cue("never")
+  ),
+  targets::tar_target(
+    data_gfdl_10km,
+    command = terra::project(terra::unwrap(data_gfdl_raw),
+                             y = terra::unwrap(grid_10km)) |>
+      terra::wrap(),
+    deployment = "main"
+  )
+)
+
 # "raw" bathymetry raster layer
 target_data_bathy_raw <- targets::tar_target(
   data_bathy_raw,
   command = create_targets_data_command("environmental-data/gebco_2024_sub_ice_n90.0_s0.0_w-180.0_e-90.0.tiff",
                                         local = targets_cas_local) |>
     eval(),
-  cue = targets::tar_cue("never")
+  cue = targets::tar_cue("never"),
+  deployment = "main"
 )
 
 # project bathymetry layer onto 10-km grid
@@ -126,8 +171,7 @@ target_data_bathy_10km <- targets::tar_target(
   command = terra::project(terra::unwrap(data_bathy_raw),
                            y = terra::unwrap(grid_10km)) |>
     terra::wrap(),
-  storage = "worker",
-  retrieval = "worker"
+  deployment = "main"
 )
 
 # create slope raster layer
@@ -136,8 +180,7 @@ target_data_slope_10km <- targets::tar_target(
   command = MultiscaleDTM::SlpAsp(terra::unwrap(data_bathy_10km), w = c(3, 3),
                                   method = "queen", metrics = "slope") |>
     terra::wrap(),
-  storage = "worker",
-  retrieval = "worker"
+  deployment = "main"
 )
 
 # create analysis dataset
@@ -193,7 +236,8 @@ target_data_analysis_resamples_temporal <- targets::tar_target(
 # define bootstrap resamples
 target_data_analysis_resamples_bootstrap <- targets::tar_target(
   data_analysis_resamples_bootstrap,
-  command = rsample::bootstraps(data_analysis, times = 10)
+  command = rsample::bootstraps(data_analysis, times = 10),
+  deployment = "main"
 )
 
 # create data frame of species to model
@@ -292,25 +336,26 @@ target_model_fit_resamples_temporal <- targets::tar_target(
 list(
   target_grid_10km,
   target_data_species_info,
-  target_data_bird_raw
-  # target_data_bird_10km,
-  # target_data_bird_10km_wc12,
-  # target_data_bird_10km_wcra31,
-  # target_data_bird_10km_wcnrt,
-  # target_data_bathy_raw,
-  # target_data_bathy_10km,
-  # target_data_slope_10km,
-  # target_data_analysis,
-  # target_data_analysis_dev,
-  # target_data_analysis_test,
-  # target_data_analysis_split,
-  # target_data_analysis_resamples_spatial,
-  # target_data_analysis_resamples_temporal,
-  # target_data_analysis_resamples_bootstrap,
-  # target_species_to_model,
-  # target_models_to_run,
-  # target_model_workflows,
-  # target_model_fits
+  target_data_bird_raw,
+  target_data_bird_10km,
+  target_data_bird_10km_wc12,
+  target_data_bird_10km_wcra31,
+  target_data_bird_10km_wcnrt,
+  # target_data_gfdl,
+  target_data_bathy_raw,
+  target_data_bathy_10km,
+  target_data_slope_10km,
+  target_data_analysis,
+  target_data_analysis_dev,
+  target_data_analysis_test,
+  target_data_analysis_split,
+  target_data_analysis_resamples_spatial,
+  target_data_analysis_resamples_temporal,
+  target_data_analysis_resamples_bootstrap,
+  target_species_to_model,
+  target_models_to_run,
+  target_model_workflows,
+  target_model_fits
   # target_model_fit_resamples_spatial,
   # target_model_fit_resamples_temporal
 )
