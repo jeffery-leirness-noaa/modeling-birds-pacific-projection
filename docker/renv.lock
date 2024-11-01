@@ -2609,6 +2609,27 @@
       "Repository": "https://packagemanager.posit.co/cran/__linux__/jammy/2024-10-08",
       "Hash": "de342ebfebdbf40477d0758d05426646"
     },
+    "tarchetypes": {
+      "Package": "tarchetypes",
+      "Version": "0.10.0",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "R",
+        "dplyr",
+        "fs",
+        "parallel",
+        "rlang",
+        "secretbase",
+        "targets",
+        "tibble",
+        "tidyselect",
+        "utils",
+        "vctrs",
+        "withr"
+      ],
+      "Hash": "554afb784cbe615ae628dfed026cf77f"
+    },
     "targets": {
       "Package": "targets",
       "Version": "1.8.0",
