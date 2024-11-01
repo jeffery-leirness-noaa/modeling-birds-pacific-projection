@@ -1,39 +1,22 @@
-type: command
+$schema: https://azuremlschemas.azureedge.net/latest/commandJob.schema.json
+command: Rscript tar_make_cluster.R --dir_in=${{inputs.dir_in}} --dir_targets_cas=${{outputs.dir_targets_cas}} --dir_targets_store=${{outputs.dir_targets_store}}
+code: .
 inputs:
   dir_in:
-  mode: ro_mount
-type: uri_folder
-path: azureml://datastores/datastor_raw/paths/
-  outputs:
-  dir_targets_cas:
-  mode: rw_mount
-type: uri_folder
-path: azureml://datastores/datastor_processing/paths/_targets
-dir_targets_store:
-  mode: rw_mount
-type: uri_folder
-path: azureml://datastores/workspaceworkingdirectory/paths/Users/jeffery.leirness/modeling-birds-pacific-projection/_targets
-environment: azureml://registries/nccos-registry-ml/environments/nccos-leirness-modeling-birds-pacific-projection/versions/14
-component:
-  name: azureml_anonymous
-version: '1'
-display_name: run-targets-tar-make-data-prep
-description: Run targets::tar_make() on compute cluster.
-type: command
-inputs:
-  dir_in:
-  type: uri_folder
-mode: ro_mount
+    mode: ro_mount
+    type: uri_folder
+    path: https://nccospacificsbdatastor.blob.core.windows.net/raw/
 outputs:
   dir_targets_cas:
-  type: uri_folder
-mode: rw_mount
-dir_targets_store:
-  type: uri_folder
-mode: rw_mount
-command: Rscript tar_make_cluster.R --dir_in=${{inputs.dir_in}} --dir_targets_cas=${{outputs.dir_targets_cas}}
---dir_targets_store=${{outputs.dir_targets_store}}
-environment: azureml://registries/nccos-registry-ml/environments/nccos-leirness-modeling-birds-pacific-projection/versions/14
-code: /home/rstudio/cloudfiles/code/Users/jeffery.leirness/modeling-birds-pacific-projection
-is_deterministic: true
-compute: azureml:nccos-vm-cluster-ds2
+    mode: rw_mount
+    type: uri_folder
+    path: https://nccospacificsbdatastor.blob.core.windows.net/processing/_targets/
+  dir_targets_store:
+    mode: rw_mount
+    type: uri_folder
+    path: azureml://datastores/workspaceworkingdirectory/paths/Users/jeffery.leirness/modeling-birds-pacific-projection/_targets
+environment: azureml://registries/nccos-registry-ml/environments/nccos-leirness-modeling-birds-pacific-projection/versions/15
+compute: nccos-vm-cluster-d14v2
+experiment_name: run-targets-tar-make
+display_name: run-targets-tar-make-data-prep
+description: Run targets::tar_make() on compute cluster.
