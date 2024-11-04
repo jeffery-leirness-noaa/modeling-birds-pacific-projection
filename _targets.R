@@ -28,7 +28,7 @@ if (targets_cas_local) {
   )
 }
 targets::tar_option_set(
-  packages = c("qs", "sf", "terra", "workflows"),
+  packages = c("qs", "sf", "terra", "tidymodels"),
   format = "qs",
   repository = repository,
   memory = "transient",
@@ -236,7 +236,7 @@ target_data_analysis_resamples_temporal <- targets::tar_target(
 # define bootstrap resamples
 target_data_analysis_resamples_bootstrap <- targets::tar_target(
   data_analysis_resamples_bootstrap,
-  command = rsample::bootstraps(data_analysis, times = 10),
+  command = rsample::bootstraps(data_analysis, times = 100),
   deployment = "main"
 )
 
@@ -355,7 +355,7 @@ list(
   target_species_to_model,
   target_models_to_run,
   target_model_workflows,
-  target_model_fits
-  # target_model_fit_resamples_spatial,
-  # target_model_fit_resamples_temporal
+  target_model_fits,
+  target_model_fit_resamples_spatial,
+  target_model_fit_resamples_temporal
 )
