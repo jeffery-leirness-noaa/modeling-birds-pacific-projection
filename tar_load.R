@@ -7,8 +7,13 @@ c(tidyselect::any_of(c("data_species_info",
   tidyselect::starts_with("data_bird"),
   tidyselect::starts_with("data_analysis"),
   tidyselect::starts_with("model_")) |>
-  targets::tar_load()
+  tar_load_azure_store()
 
+tar_load_azure_store("data_analysis")
+lobstr::obj_size(data_analysis)
+ck <- rsample::bootstraps(data_analysis, times = 1000)
+lobstr::obj_size(ck)
+# tar_load_azure_store("data_analysis_resamples_bootstrap")
 
 
 workflows::extract_preprocessor(model_workflows[[1]]) |>
