@@ -5,7 +5,7 @@ create_targets_data_command <- function(file_name, local = TRUE) {
       fs::path(opt$dir_in, !!file_name) |>
         readr::read_csv() |>
         rlang::expr()
-    } else if (ext %in% c("tif", "tiff")) {
+    } else if (ext %in% c("tif", "tiff", "nc")) {
       fs::path(opt$dir_in, !!file_name) |>
         terra::rast() |>
         terra::wrap() |>
