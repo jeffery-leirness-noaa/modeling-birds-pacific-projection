@@ -29,7 +29,6 @@ prepare_data_bird <- function(data, grid) {
 }
 
 
-# exclude data based on distance value?
 prepare_data_covariates <- function(data, label) {
   vars <- c("bbv_200", "curl", "ild_05", "ssh", "sst", "su", "sv", "sustr",
             "svstr", "eke", "chl_surf", "zoo_50m_int", "zoo_100m_int",
@@ -37,12 +36,9 @@ prepare_data_covariates <- function(data, label) {
   data |>
     dplyr::rename_with(.f = ~ stringr::str_c(label, .x, sep = "_"),
                        .cols = tidyselect::any_of(vars)) |>
+    dplyr::filter(distance == 0) |>
     dplyr::select(c(rowid, cell, date, survey_id,
-                    tidyselect::starts_with(label), "distance"))
-  # dplyr::mutate(distance_use = rowMeans(dplyr::across(tidyselect::starts_with("distance")))) |>
-  # dplyr::filter(distance_use <= sqrt(200)) |>
-  # tidyr::drop_na()
-  # dplyr::select(!tidyselect::starts_with("distance"))
+                    tidyselect::starts_with(label)))
 }
 
 
