@@ -51,7 +51,8 @@ target_grid_10km <- targets::tar_target(
                                         local = targets_cas_local) |>
     eval(),
   cue = targets::tar_cue("never"),
-  deployment = "main"
+  storage = "worker",
+  retrieval = "worker"
 )
 
 # bird species codes
@@ -78,7 +79,8 @@ target_data_bird_raw <- targets::tar_target(
 target_data_bird_10km <- targets::tar_target(
   data_bird_10km,
   command = prepare_data_bird(data_bird_raw, grid = terra::unwrap(grid_10km)),
-  deployment = "main"
+  storage = "worker",
+  retrieval = "worker"
 )
 
 # 1980-2010 hindcast predictor data sampled at marine bird data locations and months
@@ -114,9 +116,8 @@ target_data_bird_10km_wcnrt <- targets::tar_target(
   cue = targets::tar_cue("never")
 )
 
-# daily gfdl climate projection data
-values_gfdl <- tibble::tibble(
-  source = "gfdl",
+# daily climate projection data
+values_climate <- tibble::tibble(
   variable = c("bbv_200",
                "chl_surf",
                "curl",
@@ -131,27 +132,46 @@ values_gfdl <- tibble::tibble(
                "zoo_50m_int",
                "zoo_100m_int",
                "zoo_200m_int"),
-  path = fs::path("environmental-data",
-                  source,
-                  stringr::str_c(variable, "_daily.nc"))
-) |>
-  head(n = 1)
-target_data_gfdl <- tarchetypes::tar_map(
-  values = values_gfdl,
+  file = stringr::str_c(variable, "_daily.nc")
+)
+target_data_climate <- tarchetypes::tar_map(
+  values = values_climate,
+  names = "variable",
   targets::tar_target(
     data_gfdl_raw,
-    command = create_targets_data_command(path,
+    command = create_targets_data_command(fs::path("environmental-data", "gfdl",
+                                                   file),
                                           local = targets_cas_local) |>
       eval(),
-    deployment = "main",
-    cue = targets::tar_cue("never")
+    cue = targets::tar_cue("never"),
+    storage = "worker",
+    retrieval = "worker"
   ),
   targets::tar_target(
     data_gfdl_10km,
     command = terra::project(terra::unwrap(data_gfdl_raw),
                              y = terra::unwrap(grid_10km)) |>
       terra::wrap(),
-    deployment = "main"
+    storage = "worker",
+    retrieval = "worker"
+  ),
+  targets::tar_target(
+    data_hadl_raw,
+    command = create_targets_data_command(fs::path("environmental-data", "hadl",
+                                                   file),
+                                          local = targets_cas_local) |>
+      eval(),
+    cue = targets::tar_cue("never"),
+    storage = "worker",
+    retrieval = "worker"
+  ),
+  targets::tar_target(
+    data_hadl_10km,
+    command = terra::project(terra::unwrap(data_hadl_raw),
+                             y = terra::unwrap(grid_10km)) |>
+      terra::wrap(),
+    storage = "worker",
+    retrieval = "worker"
   )
 )
 
@@ -162,7 +182,8 @@ target_data_bathy_raw <- targets::tar_target(
                                         local = targets_cas_local) |>
     eval(),
   cue = targets::tar_cue("never"),
-  deployment = "main"
+  storage = "worker",
+  retrieval = "worker"
 )
 
 # project bathymetry layer onto 10-km grid
@@ -171,7 +192,8 @@ target_data_bathy_10km <- targets::tar_target(
   command = terra::project(terra::unwrap(data_bathy_raw),
                            y = terra::unwrap(grid_10km)) |>
     terra::wrap(),
-  deployment = "main"
+  storage = "worker",
+  retrieval = "worker"
 )
 
 # create slope raster layer
@@ -180,7 +202,8 @@ target_data_slope_10km <- targets::tar_target(
   command = MultiscaleDTM::SlpAsp(terra::unwrap(data_bathy_10km), w = c(3, 3),
                                   method = "queen", metrics = "slope") |>
     terra::wrap(),
-  deployment = "main"
+  storage = "worker",
+  retrieval = "worker"
 )
 
 # create analysis dataset
@@ -219,7 +242,7 @@ target_data_analysis_split <- targets::tar_target(
 # define spatial data resamples
 target_data_analysis_resamples_spatial <- targets::tar_target(
   data_analysis_resamples_spatial,
-  command = data_analysis |>
+  command = data_analysis_dev |>
     spatialsample::spatial_block_cv(v = 5) |>
     filter_rset_data(date < "2011-01-01", .split = "assessment")
 )
@@ -227,7 +250,7 @@ target_data_analysis_resamples_spatial <- targets::tar_target(
 # define temporal data resamples
 target_data_analysis_resamples_temporal <- targets::tar_target(
   data_analysis_resamples_temporal,
-  command = data_analysis |>
+  command = data_analysis_dev |>
     dplyr::filter(date < "2011-01-01") |>
     dplyr::arrange(date, survey_id) |>
     rolling_origin_prop_splits(prop = 0.15)
@@ -236,8 +259,9 @@ target_data_analysis_resamples_temporal <- targets::tar_target(
 # define bootstrap resamples
 target_data_analysis_resamples_bootstrap <- targets::tar_target(
   data_analysis_resamples_bootstrap,
-  command = rsample::bootstraps(data_analysis, times = 100),
-  deployment = "main"
+  command = rsample::bootstraps(data_analysis, times = 1000),
+  storage = "worker",
+  retrieval = "worker"
 )
 
 # create data frame of species to model
@@ -253,9 +277,7 @@ target_models_to_run <- targets::tar_target(
   models_to_run,
   command = create_models_to_run_df(species_to_model) |>
     dplyr::filter(!spatial_random_effect,
-                  covariate_prefix == "hindcast",
-                  stringr::str_starts(code, pattern = "grp_", negate = TRUE)) |>
-    dplyr::slice(1:2)
+                  stringr::str_starts(code, pattern = "grp_", negate = TRUE))
 )
 
 # define model workflows
@@ -266,7 +288,8 @@ target_model_workflows <- targets::tar_target(
                                   species_size_class = models_to_run$size_class,
                                   mgcv_select = TRUE,
                                   mgcv_gamma = models_to_run$mgcv_gamma),
-  pattern = map(models_to_run),
+  pattern = map(models_to_run) |>
+    head(n = 2),
   iteration = "list"
 )
 
@@ -341,7 +364,7 @@ list(
   target_data_bird_10km_wc12,
   target_data_bird_10km_wcra31,
   target_data_bird_10km_wcnrt,
-  # target_data_gfdl,
+  target_data_climate,
   target_data_bathy_raw,
   target_data_bathy_10km,
   target_data_slope_10km,
@@ -354,8 +377,8 @@ list(
   target_data_analysis_resamples_bootstrap,
   target_species_to_model,
   target_models_to_run,
-  target_model_workflows,
-  target_model_fits,
-  target_model_fit_resamples_spatial,
-  target_model_fit_resamples_temporal
+  target_model_workflows
+  # target_model_fits,
+  # target_model_fit_resamples_spatial,
+  # target_model_fit_resamples_temporal
 )
