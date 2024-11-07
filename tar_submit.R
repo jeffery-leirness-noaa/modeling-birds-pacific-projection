@@ -15,9 +15,10 @@ job <- submit_job_rfile(
   environment = Sys.getenv("AML_ENVIRONMENT"),
   compute = "nccos-vm-cluster-d14v2",
   experiment_name = "run-targets-tar-make",
-  display_name = "run-targets-tar-make-data-prep",
+  display_name = "run-targets-tar-make",
   description = "Run targets::tar_make() on compute cluster."
 )
 job$studio_url
 job$status
 job$update
+

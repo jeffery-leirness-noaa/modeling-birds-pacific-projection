@@ -36,7 +36,8 @@ targets::tar_option_set(
   resources = if (targets_cas_local) NULL else resources,
   cue = targets::tar_cue(repository = FALSE),
   controller = crew::crew_controller_local(
-    workers = parallel::detectCores() - 1,
+    # workers = parallel::detectCores() - 1,
+    workers = 5,
     seconds_idle = 10,
     garbage_collection = TRUE
   )
@@ -50,9 +51,9 @@ target_grid_10km <- targets::tar_target(
   command = create_targets_data_command("grid-10km.tiff",
                                         local = targets_cas_local) |>
     eval(),
-  cue = targets::tar_cue("never"),
   storage = "worker",
-  retrieval = "worker"
+  retrieval = "worker",
+  cue = targets::tar_cue("never")
 )
 
 # bird species codes
@@ -133,67 +134,43 @@ values_climate <- tibble::tibble(
                "zoo_100m_int",
                "zoo_200m_int"),
   file = stringr::str_c(variable, "_daily.nc")
-)
+) |>
+  head(n = 1)
 target_data_climate <- tarchetypes::tar_map(
   values = values_climate,
   names = "variable",
   targets::tar_target(
-    data_gfdl_raw,
-    command = create_targets_data_command(fs::path("environmental-data", "gfdl",
-                                                   file),
-                                          local = targets_cas_local) |>
-      eval(),
-    cue = targets::tar_cue("never"),
-    storage = "worker",
-    retrieval = "worker"
-  ),
-  targets::tar_target(
     data_gfdl_10km,
-    command = terra::project(terra::unwrap(data_gfdl_raw),
-                             y = terra::unwrap(grid_10km)) |>
-      terra::wrap(),
-    storage = "worker",
-    retrieval = "worker"
-  ),
-  targets::tar_target(
-    data_hadl_raw,
-    command = create_targets_data_command(fs::path("environmental-data", "hadl",
-                                                   file),
-                                          local = targets_cas_local) |>
-      eval(),
-    cue = targets::tar_cue("never"),
-    storage = "worker",
-    retrieval = "worker"
-  ),
-  targets::tar_target(
-    data_hadl_10km,
-    command = terra::project(terra::unwrap(data_hadl_raw),
-                             y = terra::unwrap(grid_10km)) |>
-      terra::wrap(),
-    storage = "worker",
-    retrieval = "worker"
+    command = {
+      r <- create_targets_data_command(fs::path("environmental-data", "gfdl",
+                                                file),
+                                       local = targets_cas_local) |>
+        eval() |>
+        terra::unwrap()
+      r_proj <- terra::project(r, y = terra::unwrap(grid_10km))
+      terra::set.values(r_proj)
+      terra::wrap(r_proj)
+    },
+    deployment = "main",
+    cue = targets::tar_cue("never")
   )
-)
-
-# "raw" bathymetry raster layer
-target_data_bathy_raw <- targets::tar_target(
-  data_bathy_raw,
-  command = create_targets_data_command("environmental-data/gebco_2024_sub_ice_n90.0_s0.0_w-180.0_e-90.0.tiff",
-                                        local = targets_cas_local) |>
-    eval(),
-  cue = targets::tar_cue("never"),
-  storage = "worker",
-  retrieval = "worker"
 )
 
 # project bathymetry layer onto 10-km grid
 target_data_bathy_10km <- targets::tar_target(
   data_bathy_10km,
-  command = terra::project(terra::unwrap(data_bathy_raw),
-                           y = terra::unwrap(grid_10km)) |>
-    terra::wrap(),
+  command = {
+    r <- create_targets_data_command("environmental-data/gebco_2024_sub_ice_n90.0_s0.0_w-180.0_e-90.0.tiff",
+                                     local = targets_cas_local) |>
+      eval() |>
+      terra::unwrap()
+    r_proj <- terra::project(r, y = terra::unwrap(grid_10km))
+    terra::set.values(r_proj)
+    terra::wrap(r_proj)
+  },
   storage = "worker",
-  retrieval = "worker"
+  retrieval = "worker",
+  cue = targets::tar_cue("never")
 )
 
 # create slope raster layer
@@ -206,17 +183,45 @@ target_data_slope_10km <- targets::tar_target(
   retrieval = "worker"
 )
 
+# temporary target?
+# mask predictor data near edges
+target_data_climate_mask <- targets::tar_target(
+  data_climate_mask,
+  command = {
+    r <- create_targets_data_command(fs::path("environmental-data", "gfdl",
+                                              "sst_daily.nc"),
+                                     local = targets_cas_local) |>
+      eval() |>
+      terra::unwrap() |>
+      terra::subset(subset = 1)
+    mat <- terra::as.matrix(r, wide = TRUE)
+    mat[c(1:3, (nrow(mat) - 2):nrow(mat)), ] <- NA
+    mat[, 1:3] <- NA
+    terra::values(r) <- mat
+    r_proj <- terra::project(r, y = terra::unwrap(grid_10km))
+    r_proj[!is.na(r_proj)] <- 1
+    terra::set.values(r_proj)
+    terra::wrap(r_proj)
+  },
+  deployment = "main",
+  cue = targets::tar_cue("never")
+)
+
 # create analysis dataset
 target_data_analysis <- targets::tar_target(
   data_analysis,
-  command = prepare_data_analysis(
-    data_bird_10km,
-    data_covariates = list(data_bird_10km_wc12,
-                           dplyr::bind_rows(data_bird_10km_wcra31,
-                                            data_bird_10km_wcnrt)),
-    add = list(depth = data_bathy_10km,
-               slope = data_slope_10km)
-  )
+  command = {
+    data <- prepare_data_analysis(
+      data_bird_10km,
+      data_covariates = list(data_bird_10km_wc12,
+                             dplyr::bind_rows(data_bird_10km_wcra31,
+                                              data_bird_10km_wcnrt)),
+      add = list(depth = data_bathy_10km,
+                 slope = data_slope_10km)
+    )
+    temp <- terra::extract(terra::unwrap(data_climate_mask), data, ID = FALSE)
+    data[!is.na(temp), ]
+  }
 )
 
 # subset of analysis dataset to use for development purposes
@@ -364,20 +369,20 @@ list(
   target_data_bird_10km_wc12,
   target_data_bird_10km_wcra31,
   target_data_bird_10km_wcnrt,
-  target_data_climate,
-  target_data_bathy_raw,
+  # target_data_climate,
+  target_data_climate_mask,
   target_data_bathy_10km,
   target_data_slope_10km,
-  target_data_analysis,
-  target_data_analysis_dev,
-  target_data_analysis_test,
-  target_data_analysis_split,
-  target_data_analysis_resamples_spatial,
-  target_data_analysis_resamples_temporal,
-  target_data_analysis_resamples_bootstrap,
-  target_species_to_model,
-  target_models_to_run,
-  target_model_workflows
+  target_data_analysis
+  # target_data_analysis_dev,
+  # target_data_analysis_test,
+  # target_data_analysis_split,
+  # target_data_analysis_resamples_spatial,
+  # target_data_analysis_resamples_temporal,
+  # target_data_analysis_resamples_bootstrap,
+  # target_species_to_model,
+  # target_models_to_run,
+  # target_model_workflows
   # target_model_fits,
   # target_model_fit_resamples_spatial,
   # target_model_fit_resamples_temporal

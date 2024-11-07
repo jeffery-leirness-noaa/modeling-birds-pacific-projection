@@ -32,7 +32,7 @@ storage_read <- function(container, file, ext = NULL, ...) {
     qs::qread(fl)
   } else if (ext == "gpkg") {
     sf::read_sf(fl)
-  } else if (ext %in% c("tif", "tiff")) {
+  } else if (ext %in% c("tif", "tiff", ".nc")) {
     terra::rast(fl) |>
       terra::wrap()
   }
