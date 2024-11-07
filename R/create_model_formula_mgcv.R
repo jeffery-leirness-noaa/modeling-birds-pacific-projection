@@ -28,6 +28,8 @@ create_model_formula_mgcv <- function(lhs,
                    "s(survey_id, bs = \"re\")",
                    "s(date_doy, bs = \"cc\")",
                    "s(date_decimal, bs = \"{bs}\")",
+                   "s(depth, bs = \"{bs}\")",
+                   "s(slope, bs = \"{bs}\")",
                    sep = " + ")
   )
   form_vars <- stringr::str_glue("s({vars}, bs = \"{bs}\")") |>
