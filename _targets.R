@@ -46,7 +46,7 @@ targets::tar_option_set(
 
 # specify targets ---------------------------------------------------------
 # 10-km prediction grid
-target_grid_10km <- targets::tar_target(
+target_grid_10km <- geotargets::tar_terra_rast(
   grid_10km,
   command = create_targets_data_command("grid-10km.tiff",
                                         local = targets_cas_local) |>
@@ -79,7 +79,7 @@ target_data_bird_raw <- targets::tar_target(
 # project marine bird data onto 10-km grid and aggregate by <grid-cell, date, survey_id>
 target_data_bird_10km <- targets::tar_target(
   data_bird_10km,
-  command = prepare_data_bird(data_bird_raw, grid = terra::unwrap(grid_10km)),
+  command = prepare_data_bird(data_bird_raw, grid = grid_10km),
   storage = "worker",
   retrieval = "worker"
 )
@@ -139,69 +139,55 @@ values_climate <- tibble::tibble(
 target_data_climate <- tarchetypes::tar_map(
   values = values_climate,
   names = "variable",
-  targets::tar_target(
+  geotargets::tar_terra_rast(
     data_gfdl_10km,
-    command = {
-      r <- create_targets_data_command(fs::path("environmental-data", "gfdl",
-                                                file),
-                                       local = targets_cas_local) |>
-        eval() |>
-        terra::unwrap()
-      r_proj <- terra::project(r, y = terra::unwrap(grid_10km))
-      terra::set.values(r_proj)
-      terra::wrap(r_proj)
-    },
+    command = create_targets_data_command(fs::path("environmental-data", "gfdl",
+                                                   file),
+                                          local = targets_cas_local) |>
+      eval() |>
+      terra::project(y = grid_10km),
     deployment = "main",
     cue = targets::tar_cue("never")
   )
 )
 
 # project bathymetry layer onto 10-km grid
-target_data_bathy_10km <- targets::tar_target(
+target_data_bathy_10km <- geotargets::tar_terra_rast(
   data_bathy_10km,
-  command = {
-    r <- create_targets_data_command("environmental-data/gebco_2024_sub_ice_n90.0_s0.0_w-180.0_e-90.0.tiff",
-                                     local = targets_cas_local) |>
-      eval() |>
-      terra::unwrap()
-    r_proj <- terra::project(r, y = terra::unwrap(grid_10km))
-    terra::set.values(r_proj)
-    terra::wrap(r_proj)
-  },
+  command = create_targets_data_command("environmental-data/gebco_2024_sub_ice_n90.0_s0.0_w-180.0_e-90.0.tiff",
+                                        local = targets_cas_local) |>
+    eval() |>
+    terra::project(y = grid_10km),
   storage = "worker",
   retrieval = "worker",
   cue = targets::tar_cue("never")
 )
 
 # create slope raster layer
-target_data_slope_10km <- targets::tar_target(
+target_data_slope_10km <- geotargets::tar_terra_rast(
   data_slope_10km,
-  command = MultiscaleDTM::SlpAsp(terra::unwrap(data_bathy_10km), w = c(3, 3),
-                                  method = "queen", metrics = "slope") |>
-    terra::wrap(),
+  command = MultiscaleDTM::SlpAsp(data_bathy_10km, w = c(3, 3),
+                                  method = "queen", metrics = "slope"),
   storage = "worker",
   retrieval = "worker"
 )
 
-# temporary target?
 # mask predictor data near edges
-target_data_climate_mask <- targets::tar_target(
+target_data_climate_mask <- geotargets::tar_terra_rast(
   data_climate_mask,
   command = {
     r <- create_targets_data_command(fs::path("environmental-data", "gfdl",
                                               "sst_daily.nc"),
                                      local = targets_cas_local) |>
       eval() |>
-      terra::unwrap() |>
       terra::subset(subset = 1)
     mat <- terra::as.matrix(r, wide = TRUE)
-    mat[c(1:3, (nrow(mat) - 2):nrow(mat)), ] <- NA
-    mat[, 1:3] <- NA
+    mat[c(1:5, (nrow(mat) - 4):nrow(mat)), ] <- NA
+    mat[, 1:5] <- NA
     terra::values(r) <- mat
-    r_proj <- terra::project(r, y = terra::unwrap(grid_10km))
+    r_proj <- terra::project(r, y = grid_10km)
     r_proj[!is.na(r_proj)] <- 1
-    terra::set.values(r_proj)
-    terra::wrap(r_proj)
+    r_proj
   },
   deployment = "main",
   cue = targets::tar_cue("never")
@@ -219,7 +205,7 @@ target_data_analysis <- targets::tar_target(
       add = list(depth = data_bathy_10km,
                  slope = data_slope_10km)
     )
-    temp <- terra::extract(terra::unwrap(data_climate_mask), data, ID = FALSE)
+    temp <- terra::extract(data_climate_mask, data, ID = FALSE)
     data[!is.na(temp), ]
   }
 )

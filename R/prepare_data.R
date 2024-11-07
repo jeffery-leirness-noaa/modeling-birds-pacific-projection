@@ -48,9 +48,7 @@ prepare_data_analysis <- function(data_bird, data_covariates, add) {
   for (i in seq(along = data_covariates)) {
     data <- dplyr::left_join(data, y = data_covariates[[i]], by = join_by)
   }
-  r <- add |>
-    purrr::map(.f = terra::unwrap) |>
-    terra::rast()
+  r <- terra::rast(add)
   names(r) <- names(add)
   data <- data |>
     dplyr::mutate(survey_id = forcats::as_factor(survey_id)) |>
