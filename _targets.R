@@ -43,14 +43,14 @@ targets::tar_option_set(
   )
 )
 
-
 # specify targets ---------------------------------------------------------
 # 10-km prediction grid
-target_grid_10km <- geotargets::tar_terra_rast(
+target_grid_10km <- targets::tar_target(
   grid_10km,
   command = create_targets_data_command("grid-10km.tiff",
                                         local = targets_cas_local) |>
     eval(),
+  format = define_tar_format_terra_rast("GTiff"),
   storage = "worker",
   retrieval = "worker",
   cue = targets::tar_cue("never")
@@ -139,41 +139,44 @@ values_climate <- tibble::tibble(
 target_data_climate <- tarchetypes::tar_map(
   values = values_climate,
   names = "variable",
-  geotargets::tar_terra_rast(
+  targets::tar_target(
     data_gfdl_10km,
     command = create_targets_data_command(fs::path("environmental-data", "gfdl",
                                                    file),
                                           local = targets_cas_local) |>
       eval() |>
       terra::project(y = grid_10km),
+    format = define_tar_format_terra_rast("GTiff"),
     deployment = "main",
     cue = targets::tar_cue("never")
   )
 )
 
 # project bathymetry layer onto 10-km grid
-target_data_bathy_10km <- geotargets::tar_terra_rast(
+target_data_bathy_10km <- targets::tar_target(
   data_bathy_10km,
   command = create_targets_data_command("environmental-data/gebco_2024_sub_ice_n90.0_s0.0_w-180.0_e-90.0.tiff",
                                         local = targets_cas_local) |>
     eval() |>
     terra::project(y = grid_10km),
+  format = define_tar_format_terra_rast("GTiff"),
   storage = "worker",
   retrieval = "worker",
   cue = targets::tar_cue("never")
 )
 
 # create slope raster layer
-target_data_slope_10km <- geotargets::tar_terra_rast(
+target_data_slope_10km <- targets::tar_target(
   data_slope_10km,
   command = MultiscaleDTM::SlpAsp(data_bathy_10km, w = c(3, 3),
                                   method = "queen", metrics = "slope"),
+  format = define_tar_format_terra_rast("GTiff"),
   storage = "worker",
   retrieval = "worker"
 )
 
 # mask predictor data near edges
-target_data_climate_mask <- geotargets::tar_terra_rast(
+target_data_climate_mask <- targets::tar_target(
   data_climate_mask,
   command = {
     r <- create_targets_data_command(fs::path("environmental-data", "gfdl",
@@ -189,6 +192,7 @@ target_data_climate_mask <- geotargets::tar_terra_rast(
     r_proj[!is.na(r_proj)] <- 1
     r_proj
   },
+  format = define_tar_format_terra_rast("GTiff"),
   deployment = "main",
   cue = targets::tar_cue("never")
 )
@@ -355,20 +359,20 @@ list(
   target_data_bird_10km_wc12,
   target_data_bird_10km_wcra31,
   target_data_bird_10km_wcnrt,
-  # target_data_climate,
+  target_data_climate,
   target_data_climate_mask,
   target_data_bathy_10km,
   target_data_slope_10km,
-  target_data_analysis
-  # target_data_analysis_dev,
-  # target_data_analysis_test,
-  # target_data_analysis_split,
-  # target_data_analysis_resamples_spatial,
-  # target_data_analysis_resamples_temporal,
-  # target_data_analysis_resamples_bootstrap,
-  # target_species_to_model,
-  # target_models_to_run,
-  # target_model_workflows
+  target_data_analysis,
+  target_data_analysis_dev,
+  target_data_analysis_test,
+  target_data_analysis_split,
+  target_data_analysis_resamples_spatial,
+  target_data_analysis_resamples_temporal,
+  target_data_analysis_resamples_bootstrap,
+  target_species_to_model,
+  target_models_to_run,
+  target_model_workflows
   # target_model_fits,
   # target_model_fit_resamples_spatial,
   # target_model_fit_resamples_temporal

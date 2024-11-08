@@ -33,7 +33,9 @@ storage_read <- function(container, file, ext = NULL, ...) {
   } else if (ext == "gpkg") {
     sf::read_sf(fl)
   } else if (ext %in% c("tif", "tiff", ".nc")) {
-    terra::rast(fl)
+    r <- terra::rast(fl)
+    terra::set.values(r)
+    r
   }
 }
 
