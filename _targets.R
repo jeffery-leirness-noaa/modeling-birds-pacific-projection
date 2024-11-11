@@ -141,15 +141,23 @@ target_data_climate <- tarchetypes::tar_map(
   names = "variable",
   targets::tar_target(
     data_gfdl_10km,
-    command = create_targets_data_command(fs::path("environmental-data", "gfdl",
-                                                   file),
-                                          local = targets_cas_local) |>
-      eval() |>
-      terra::project(y = grid_10km),
+    command = {
+      r <- create_targets_data_command(fs::path("environmental-data", "gfdl",
+                                                file),
+                                       local = targets_cas_local) |>
+        eval()
+      terra::set.values(r)
+      terra::project(r, y = grid_10km)
+    },
     format = define_tar_format_terra_rast("GTiff"),
     deployment = "main",
     cue = targets::tar_cue("never")
   )
+)
+
+target_test_plot <- targets::tar_target(
+  test_plot,
+  command = terra::plot(data_gfdl_10km_bbv_200[[1:4]])
 )
 
 # project bathymetry layer onto 10-km grid
@@ -372,7 +380,8 @@ list(
   target_data_analysis_resamples_bootstrap,
   target_species_to_model,
   target_models_to_run,
-  target_model_workflows
+  target_model_workflows,
+  target_test_plot
   # target_model_fits,
   # target_model_fit_resamples_spatial,
   # target_model_fit_resamples_temporal
