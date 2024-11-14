@@ -22,15 +22,24 @@ define_model_recipe <- function(model_formula, data, species_size_class) {
     recipes::step_rename(survey_area_km2 = !!survey_area_var) |>
     recipes::step_log(survey_area_km2) |>
     recipes::step_center(survey_area_km2) |>
-    recipes::step_normalize(recipes::all_numeric_predictors(), -survey_area_km2) |>
+    recipes::step_normalize(
+      recipes::all_numeric_predictors(),
+      -c(survey_area_km2, date_doy)
+    ) |>
     recipes::step_naomit(recipes::all_outcomes(), recipes::all_predictors())
 
 }
 
 define_model_spec <- function(mgcv_select = FALSE, mgcv_gamma = NULL) {
-  gam_model <- parsnip::gen_additive_mod(select_features = !!mgcv_select,
-                                         adjust_deg_free = !!mgcv_gamma) |>
-    parsnip::set_engine("mgcv", family = mgcv::nb()) |>
+  gam_model <- parsnip::gen_additive_mod(
+    select_features = !!mgcv_select,
+    adjust_deg_free = !!mgcv_gamma
+  ) |>
+    parsnip::set_engine(
+      "mgcv",
+      family = mgcv::nb(),
+      knots = list(date_doy = c(1, 366))
+    ) |>
     parsnip::set_mode("regression")
 }
 
