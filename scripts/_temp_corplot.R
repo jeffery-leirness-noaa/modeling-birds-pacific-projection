@@ -16,3 +16,40 @@ data_analysis |>
   dplyr::select(tidyselect::starts_with("hindcast_zoo")) |>
   tidyr::drop_na() |>
   GGally::ggpairs()
+
+
+# hindcast variables
+cor_df_pearson <- data_analysis |>
+  tibble::as_tibble() |>
+  dplyr::select(tidyselect::starts_with("hindcast_"), "depth", "slope") |>
+  corrr::correlate(method = "pearson")
+corrr::autoplot(cor_df_pearson)
+corrr::stretch(cor_df_pearson, na.rm = TRUE, remove.dups = TRUE) |>
+  dplyr::filter(abs(r) > 0.6)
+
+cor_df_spearman <- data_analysis |>
+  tibble::as_tibble() |>
+  dplyr::select(tidyselect::starts_with("hindcast_"), "depth", "slope") |>
+  corrr::correlate(method = "spearman")
+corrr::autoplot(cor_df_spearman)
+corrr::stretch(cor_df_spearman, na.rm = TRUE, remove.dups = TRUE) |>
+  dplyr::filter(abs(r) > 0.6)
+
+
+# reanalysis variables
+cor_df_pearson <- data_analysis |>
+  tibble::as_tibble() |>
+  dplyr::select(tidyselect::starts_with("reanalysis_"), "depth", "slope") |>
+  corrr::correlate(method = "pearson")
+corrr::autoplot(cor_df_pearson)
+corrr::stretch(cor_df_pearson, na.rm = TRUE, remove.dups = TRUE) |>
+  dplyr::filter(abs(r) > 0.6)
+
+cor_df_spearman <- data_analysis |>
+  tibble::as_tibble() |>
+  dplyr::select(tidyselect::starts_with("reanalysis_"), "depth", "slope") |>
+  corrr::correlate(method = "spearman")
+corrr::autoplot(cor_df_spearman)
+corrr::stretch(cor_df_spearman, na.rm = TRUE, remove.dups = TRUE) |>
+  dplyr::filter(abs(r) > 0.6)
+
