@@ -155,11 +155,6 @@ target_data_climate <- tarchetypes::tar_map(
   )
 )
 
-target_test_plot <- targets::tar_target(
-  test_plot,
-  command = terra::plot(data_gfdl_10km_bbv_200[[1:4]])
-)
-
 # project bathymetry layer onto 10-km grid
 target_data_bathy_10km <- targets::tar_target(
   data_bathy_10km,
@@ -245,7 +240,7 @@ target_data_analysis_split <- targets::tar_target(
 # define spatial data resamples
 target_data_analysis_resamples_spatial <- targets::tar_target(
   data_analysis_resamples_spatial,
-  command = data_analysis_dev |>
+  command = data_analysis_test |>
     spatialsample::spatial_block_cv(v = 5) |>
     filter_rset_data(date < "2011-01-01", .split = "assessment")
 )
@@ -253,7 +248,7 @@ target_data_analysis_resamples_spatial <- targets::tar_target(
 # define temporal data resamples
 target_data_analysis_resamples_temporal <- targets::tar_target(
   data_analysis_resamples_temporal,
-  command = data_analysis_dev |>
+  command = data_analysis_test |>
     dplyr::filter(date < "2011-01-01") |>
     dplyr::arrange(date, survey_id) |>
     rolling_origin_prop_splits(prop = 0.15)
@@ -292,8 +287,12 @@ target_model_workflows <- targets::tar_target(
                                   mgcv_select = TRUE,
                                   mgcv_gamma = models_to_run$mgcv_gamma),
   pattern = map(models_to_run) |>
-    head(n = 2),
+    head(n = 10),
   iteration = "list"
+)
+target_model_workflows_combined <- targets::tar_target(
+  model_workflows_combined,
+  command = model_workflows
 )
 
 # # compare hindcast vs. reanalysis
@@ -318,8 +317,13 @@ target_model_fits <- targets::tar_target(
   pattern = map(model_workflows),
   iteration = "list"
 )
+target_model_fits_combined <- targets::tar_target(
+  model_fits_combined,
+  command = model_fits
+)
 
 # fit models via spatial resampling
+# should survey_id be excluded during cross-validation testing?
 target_model_fit_resamples_spatial <- targets::tar_target(
   model_fit_resamples_spatial,
   command = tune::fit_resamples(
@@ -328,14 +332,20 @@ target_model_fit_resamples_spatial <- targets::tar_target(
     control = tune::control_resamples(
       extract = function(x) list(workflows::extract_recipe(x),
                                  workflows::extract_fit_engine(x)),
+      save_pred = TRUE,
       save_workflow = TRUE
     )
   ),
   pattern = map(model_workflows),
   iteration = "list"
 )
+target_model_fit_resamples_spatial_combined <- targets::tar_target(
+  model_fit_resamples_spatial_combined,
+  command = model_fit_resamples_spatial
+)
 
 # fit models via temporal resampling
+# should survey_id be excluded during cross-validation testing?
 target_model_fit_resamples_temporal <- targets::tar_target(
   model_fit_resamples_temporal,
   command = tune::fit_resamples(
@@ -344,11 +354,16 @@ target_model_fit_resamples_temporal <- targets::tar_target(
     control = tune::control_resamples(
       extract = function(x) list(workflows::extract_recipe(x),
                                  workflows::extract_fit_engine(x)),
+      save_pred = TRUE,
       save_workflow = TRUE
     )
   ),
   pattern = map(model_workflows),
   iteration = "list"
+)
+target_model_fit_resamples_temporal_combined <- targets::tar_target(
+  model_fit_resamples_temporal_combined,
+  command = model_fit_resamples_temporal
 )
 
 # create prediction rasters from fitted models
@@ -367,7 +382,7 @@ list(
   target_data_bird_10km_wc12,
   target_data_bird_10km_wcra31,
   target_data_bird_10km_wcnrt,
-  target_data_climate,
+  # target_data_climate,
   target_data_climate_mask,
   target_data_bathy_10km,
   target_data_slope_10km,
@@ -377,12 +392,14 @@ list(
   target_data_analysis_split,
   target_data_analysis_resamples_spatial,
   target_data_analysis_resamples_temporal,
-  target_data_analysis_resamples_bootstrap,
+  # target_data_analysis_resamples_bootstrap,
   target_species_to_model,
   target_models_to_run,
   target_model_workflows,
-  target_test_plot
+  target_model_workflows_combined,
   # target_model_fits,
-  # target_model_fit_resamples_spatial,
-  # target_model_fit_resamples_temporal
+  target_model_fit_resamples_spatial,
+  target_model_fit_resamples_spatial_combined,
+  target_model_fit_resamples_temporal,
+  target_model_fit_resamples_temporal_combined
 )
