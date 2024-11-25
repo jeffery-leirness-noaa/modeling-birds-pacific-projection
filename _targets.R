@@ -28,7 +28,7 @@ if (targets_cas_local) {
   )
 }
 targets::tar_option_set(
-  packages = c("qs", "sf", "terra", "tidymodels"),
+  packages = c("qs", "sf", "terra", "workflows"),
   format = "qs",
   repository = repository,
   memory = "transient",
@@ -37,8 +37,9 @@ targets::tar_option_set(
   cue = targets::tar_cue(repository = FALSE),
   controller = crew::crew_controller_local(
     # workers = parallel::detectCores() - 1,
-    workers = 5,
-    seconds_idle = 10,
+    workers = 12,
+    seconds_idle = 30,
+    # launch_max = 10,
     garbage_collection = TRUE
   )
 )
@@ -231,16 +232,25 @@ target_data_analysis_test <- targets::tar_target(
     rsample::training()
 )
 
-# define initial data split
+# define single data split
 target_data_analysis_split <- targets::tar_target(
   data_analysis_split,
   command = rsample::initial_split(data_analysis)
 )
 
+# define single temporal split
+target_data_analysis_split_temporal <- targets::tar_target(
+  data_analysis_split_temporal,
+  command = data_analysis |>
+    dplyr::filter(date < "2011-01-01") |>
+    dplyr::arrange(date, survey_id) |>
+    rsample::initial_time_split(prop = 0.85)
+)
+
 # define spatial data resamples
 target_data_analysis_resamples_spatial <- targets::tar_target(
   data_analysis_resamples_spatial,
-  command = data_analysis_test |>
+  command = data_analysis |>
     spatialsample::spatial_block_cv(v = 5) |>
     filter_rset_data(date < "2011-01-01", .split = "assessment")
 )
@@ -248,7 +258,7 @@ target_data_analysis_resamples_spatial <- targets::tar_target(
 # define temporal data resamples
 target_data_analysis_resamples_temporal <- targets::tar_target(
   data_analysis_resamples_temporal,
-  command = data_analysis_test |>
+  command = data_analysis |>
     dplyr::filter(date < "2011-01-01") |>
     dplyr::arrange(date, survey_id) |>
     rolling_origin_prop_splits(prop = 0.15)
@@ -287,12 +297,35 @@ target_model_workflows <- targets::tar_target(
                                   mgcv_select = TRUE,
                                   mgcv_gamma = models_to_run$mgcv_gamma),
   pattern = map(models_to_run) |>
-    head(n = 10),
+    head(n = 160),
   iteration = "list"
 )
 target_model_workflows_combined <- targets::tar_target(
   model_workflows_combined,
-  command = model_workflows
+  command = model_workflows,
+  storage = "worker",
+  retrieval = "worker"
+)
+
+# define model metrics
+target_model_metrics <- targets::tar_target(
+  model_metrics,
+  command = yardstick::metric_set(yardstick::ccc,
+                                  yardstick::huber_loss,
+                                  yardstick::huber_loss_pseudo,
+                                  yardstick::iic,
+                                  yardstick::mae,
+                                  yardstick::mape,
+                                  yardstick::mase,
+                                  yardstick::mpe,
+                                  yardstick::msd,
+                                  yardstick::poisson_log_loss,
+                                  yardstick::rmse,
+                                  yardstick::rpd,
+                                  yardstick::rpiq,
+                                  yardstick::rsq,
+                                  yardstick::rsq_trad,
+                                  yardstick::smape)
 )
 
 # # compare hindcast vs. reanalysis
@@ -313,25 +346,27 @@ target_model_workflows_combined <- targets::tar_target(
 # fit models
 target_model_fits <- targets::tar_target(
   model_fits,
-  command = parsnip::fit(model_workflows, data = data_analysis_dev),
+  command = parsnip::fit(model_workflows, data = data_analysis),
   pattern = map(model_workflows),
   iteration = "list"
 )
 target_model_fits_combined <- targets::tar_target(
   model_fits_combined,
-  command = model_fits
+  command = model_fits,
+  storage = "worker",
+  retrieval = "worker"
 )
 
 # fit models via spatial resampling
-# should survey_id be excluded during cross-validation testing?
 target_model_fit_resamples_spatial <- targets::tar_target(
   model_fit_resamples_spatial,
   command = tune::fit_resamples(
     model_workflows,
     resamples = data_analysis_resamples_spatial,
+    metrics = model_metrics,
     control = tune::control_resamples(
       extract = function(x) list(workflows::extract_recipe(x),
-                                 workflows::extract_fit_engine(x)),
+                                 workflows::extract_fit_parsnip(x)),
       save_pred = TRUE,
       save_workflow = TRUE
     )
@@ -341,19 +376,67 @@ target_model_fit_resamples_spatial <- targets::tar_target(
 )
 target_model_fit_resamples_spatial_combined <- targets::tar_target(
   model_fit_resamples_spatial_combined,
-  command = model_fit_resamples_spatial
+  command = model_fit_resamples_spatial,
+  storage = "worker",
+  retrieval = "worker"
+)
+# target_model_fit_resamples_spatial2 <- targets::tar_target(
+#   model_fit_resamples_spatial2,
+#   command = tune::fit_resamples(
+#     model_workflows,
+#     resamples = rsample::manual_rset(data_analysis_resamples_spatial$splits,
+#                                      data_analysis_resamples_spatial$id),
+#     metrics = model_metrics,
+#     control = tune::control_resamples(
+#       extract = function(x) list(workflows::extract_recipe(x),
+#                                  workflows::extract_fit_parsnip(x)),
+#       save_pred = TRUE,
+#       save_workflow = TRUE
+#     )
+#   ),
+#   pattern = cross(model_workflows, data_analysis_resamples_spatial),
+#   iteration = "list"
+# )
+# target_model_fit_resamples_spatial2_combined <- targets::tar_target(
+#   model_fit_resamples_spatial2_combined,
+#   command = model_fit_resamples_spatial2,
+#   deployment = "main"
+# )
+
+# fit models via single temporal split
+target_model_fit_split_temporal <- targets::tar_target(
+  model_fit_split_temporal,
+  command = tune::fit_resamples(
+    model_workflows,
+    resamples = data_analysis_split_temporal,
+    metrics = model_metrics,
+    control = tune::control_resamples(
+      extract = function(x) list(workflows::extract_recipe(x),
+                                 workflows::extract_fit_parsnip(x)),
+      save_pred = TRUE,
+      save_workflow = TRUE
+    )
+  ),
+  pattern = map(model_workflows),
+  iteration = "list"
+)
+target_model_fit_split_temporal_combined <- targets::tar_target(
+  model_fit_split_temporal_combined,
+  command = model_fit_split_temporal,
+  storage = "worker",
+  retrieval = "worker"
 )
 
 # fit models via temporal resampling
-# should survey_id be excluded during cross-validation testing?
 target_model_fit_resamples_temporal <- targets::tar_target(
   model_fit_resamples_temporal,
   command = tune::fit_resamples(
     model_workflows,
     resamples = data_analysis_resamples_temporal,
+    metrics = model_metrics,
     control = tune::control_resamples(
       extract = function(x) list(workflows::extract_recipe(x),
-                                 workflows::extract_fit_engine(x)),
+                                 workflows::extract_fit_parsnip(x)),
       save_pred = TRUE,
       save_workflow = TRUE
     )
@@ -363,7 +446,9 @@ target_model_fit_resamples_temporal <- targets::tar_target(
 )
 target_model_fit_resamples_temporal_combined <- targets::tar_target(
   model_fit_resamples_temporal_combined,
-  command = model_fit_resamples_temporal
+  command = model_fit_resamples_temporal,
+  storage = "worker",
+  retrieval = "worker"
 )
 
 # create prediction rasters from fitted models
@@ -390,16 +475,22 @@ list(
   target_data_analysis_dev,
   target_data_analysis_test,
   target_data_analysis_split,
+  target_data_analysis_split_temporal,
   target_data_analysis_resamples_spatial,
   target_data_analysis_resamples_temporal,
   # target_data_analysis_resamples_bootstrap,
   target_species_to_model,
   target_models_to_run,
   target_model_workflows,
-  target_model_workflows_combined,
+  # target_model_workflows_combined,
+  target_model_metrics,
   # target_model_fits,
   target_model_fit_resamples_spatial,
   target_model_fit_resamples_spatial_combined,
-  target_model_fit_resamples_temporal,
-  target_model_fit_resamples_temporal_combined
+  # target_model_fit_resamples_spatial2,
+  # target_model_fit_resamples_spatial2_combined
+  target_model_fit_split_temporal,
+  target_model_fit_split_temporal_combined
+  # target_model_fit_resamples_temporal,
+  # target_model_fit_resamples_temporal_combined
 )

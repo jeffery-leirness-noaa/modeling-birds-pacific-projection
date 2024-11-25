@@ -17,6 +17,27 @@ lobstr::obj_size(ck)
 # tar_load_azure_store("data_analysis_resamples_bootstrap")
 
 
+analysis <- data_analysis_resamples_spatial |>
+  dplyr::pull(splits) |>
+  purrr::map(.f = rsample::analysis) |>
+  purrr::list_rbind(names_to = "split") |>
+  dplyr::mutate(set = "analysis")
+
+temp <- data_analysis_resamples_spatial |>
+  dplyr::pull(splits) |>
+  purrr::map(.f = rsample::assessment) |>
+  purrr::list_rbind(names_to = "split") |>
+  dplyr::mutate(set = "assessment") |>
+  dplyr::bind_rows(analysis) |>
+  tibble::as_tibble() |>
+  sf::st_as_sf()
+
+ggplot2::ggplot(temp) +
+  ggplot2::geom_sf(mapping = ggplot2::aes(color = set)) +
+  ggplot2::facet_wrap(~ split)
+
+
+
 workflows::extract_preprocessor(model_workflows[[1]]) |>
   recipes::prep()
 
@@ -138,3 +159,206 @@ tune::collect_metrics(final_fit)
 tune::collect_predictions(final_fit)
 
 final_mod <- tune::extract_workflow(final_fit)
+
+
+
+model_fit_resamples_temporal_combined[[1]] |>
+  tune::extract_workflow()
+
+model_fit_resamples_temporal_combined[[1]] |>
+  dplyr::select(id, .metrics) |>
+  tidyr::unnest(cols = .metrics) |>
+  dplyr::filter(.metric == "rmse") |>
+  ggplot2::ggplot(mapping = ggplot2::aes(id, .estimate, group = 1)) +
+  ggplot2::geom_line()
+
+purrr::map(model_fit_resamples_spatial_combined,
+           \(x) tune::collect_metrics(x)) |>
+  purrr::list_rbind()
+
+
+metrics <- list()
+for (i in seq(along = model_fit_resamples_spatial_combined)) {
+  metrics_i <- tune::collect_metrics(model_fit_resamples_spatial_combined[[i]])
+  # pde <- tune::collect_extracts(model_fit_resamples_spatial_combined[[i]]) |>
+  #   dplyr::pull(.extracts) |>
+  #   purrr::map_vec(\(x) summary(x[[2]]$fit)$dev.expl)
+  # metrics_i <- dplyr::bind_rows(metrics_i,
+  #                               tibble::tibble(.metric = "pde",
+  #                                              mean = mean(pde),
+  #                                              n = length(pde),
+  #                                              std_err = sd(pde)))
+  metrics[[i]] <- dplyr::slice(models_to_run, i) |>
+    dplyr::select(!model_formula) |>
+    dplyr::bind_cols(metrics_i)
+}
+metrics <- purrr::list_rbind(metrics)
+ggplot2::ggplot(metrics |>
+                  dplyr::filter(code == "wwsc",
+                                .metric == "rmse"),
+                mapping = ggplot2::aes(mgcv_gamma, mean,
+                                       group = covariate_prefix,
+                                       color = covariate_prefix)) +
+  ggplot2::geom_line()
+
+metrics |>
+  dplyr::filter(.metric == "rmse") |>
+  dplyr::group_by(code, covariate_prefix) |>
+  dplyr::summarise(rmse_min = min(mean))
+
+metrics |>
+  dplyr::filter(.metric == "rmse") |>
+  dplyr::group_by(code) |>
+  dplyr::summarise(min_rmse = min(mean),
+                   min_covariate = covariate_prefix[which.min(mean)],
+                   min_gamma = mgcv_gamma[which.min(mean)]) |>
+  janitor::tabyl(min_covariate)
+
+
+
+purrr::map(model_fit_resamples_spatial_combined,
+           \(x) {
+             temp <- tune::collect_extracts(x) |>
+               dplyr::pull(.extracts)
+             select <- temp[[1]][[2]]$fit$call$select |>
+               rlang::quo_get_expr()
+             gamma <- temp[[1]][[2]]$fit$call$gamma |>
+               rlang::quo_get_expr()
+             tibble::tibble(select = select, gamma = gamma)
+           }) |>
+  purrr::list_rbind()
+
+ck <- purrr::map(model_fit_resamples_temporal_combined,
+                 \(x) tune::collect_extracts(x) |>
+                   dplyr::pull(.extracts))
+
+model_fit_resamples_temporal_combined[[1]] |>
+  tune::collect_extracts() |>
+  dplyr::pull(.extracts)
+
+model_fit_resamples_temporal_combined[[1]] |>
+  dplyr::filter(id == "Slice1") |>
+  dplyr::pull(splits) |>
+  purrr::pluck(1) |>
+  rsample::assessment()
+
+
+
+
+
+tar_load_azure_store(c("data_analysis_dev", "model_workflows_combined"))
+resamples <- data_analysis_dev |>
+  spatialsample::spatial_block_cv(v = 2)
+fit_resamples <- tune::fit_resamples(
+  model_workflows_combined[[1]],
+  resamples = resamples,
+  control = tune::control_resamples(
+    extract = function(x) list(workflows::extract_recipe(x),
+                               workflows::extract_fit_parsnip(x)),
+    save_pred = TRUE,
+    save_workflow = TRUE
+  )
+)
+
+
+
+fit_resamples |>
+  dplyr::pull(.predictions) |>
+  purrr::pluck(1) |>
+  summary()
+
+fit_resamples |>
+  dplyr::filter(id == "Fold1") |>
+  dplyr::pull(splits) |>
+  purrr::pluck(1) |>
+  rsample::analysis() |>
+  dplyr::pull(survey_id) |>
+  unique() |>
+  as.character() |>
+  sort()
+fit_resamples |>
+  dplyr::filter(id == "Fold1") |>
+  dplyr::pull(splits) |>
+  purrr::pluck(1) |>
+  rsample::assessment() |>
+  dplyr::pull(survey_id) |>
+  unique() |>
+  as.character() |>
+  sort()
+
+
+newdata <- fit_resamples |>
+  dplyr::filter(id == "Fold1") |>
+  dplyr::pull(splits) |>
+  purrr::pluck(1) |>
+  rsample::assessment() |>
+  tibble::as_tibble()
+newdata <- fit_resamples |>
+  tune::collect_extracts() |>
+  dplyr::filter(id == "Fold1") |>
+  dplyr::pull(.extracts) |>
+  purrr::pluck(1) |>
+  purrr::pluck(1) |>
+  recipes::bake(new_data = newdata)
+
+newdata <- fit_resamples |>
+  tune::collect_extracts() |>
+  dplyr::filter(id == "Fold1") |>
+  dplyr::pull(.extracts) |>
+  purrr::pluck(1) |>
+  purrr::pluck(2) |>
+  predict(new_data = newdata) |>
+  dplyr::bind_cols(newdata)
+
+newdata$pred2 <- fit_resamples |>
+  tune::collect_extracts() |>
+  dplyr::filter(id == "Fold1") |>
+  dplyr::pull(.extracts) |>
+  purrr::pluck(1) |>
+  purrr::pluck(2) |>
+  predict(new_data = newdata, type = "raw",
+          opts = list(type = "response", exclude = "s(survey_id)"))
+
+newdata |>
+  # dplyr::filter(survey_id == "WW") |>
+  dplyr::select(.pred, pred2)
+
+fit_resamples |>
+  tune::collect_predictions() |>
+  dplyr::filter(id == "Fold1")
+
+
+
+
+fit_resamples1 <- tune::fit_resamples(
+  model_workflows_combined[[1]],
+  resamples = {
+    temp <- dplyr::filter(resamples, id == "Fold1")
+    rsample::manual_rset(temp$splits, temp$id)
+  },
+  control = tune::control_resamples(
+    extract = function(x) list(workflows::extract_recipe(x),
+                               workflows::extract_fit_parsnip(x)),
+    save_pred = TRUE,
+    save_workflow = TRUE
+  )
+)
+fit_resamples2 <- tune::fit_resamples(
+  model_workflows_combined[[1]],
+  resamples = {
+    temp <- dplyr::filter(resamples, id == "Fold2")
+    rsample::manual_rset(temp$splits, temp$id)
+  },
+  control = tune::control_resamples(
+    extract = function(x) list(workflows::extract_recipe(x),
+                               workflows::extract_fit_parsnip(x)),
+    save_pred = TRUE,
+    save_workflow = TRUE
+  )
+)
+dplyr::bind_rows(fit_resamples1, fit_resamples2) |>
+  tune::collect_metrics()
+
+fit_resamples |>
+  tune::collect_metrics()
+

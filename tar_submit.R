@@ -21,4 +21,3 @@ job <- submit_job_rfile(
 job$studio_url
 job$status
 job$update
-
