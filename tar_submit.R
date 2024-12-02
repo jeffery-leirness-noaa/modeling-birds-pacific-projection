@@ -1,5 +1,4 @@
 source("R/submit_job.R")
-config <- config::get(file = "config.yaml")
 job <- submit_job_rfile(
   rfile = "tar_make_cluster.R",
   inputs = list(dir_in = Sys.getenv("AML_DATASTORE_RAW")),

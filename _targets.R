@@ -3,9 +3,6 @@ if (fs::file_exists("_targets_helper.R")) {
   source("_targets_helper.R")
 }
 
-# get configuration values
-config <- config::get(file = "config.yaml")
-
 # source R scripts in the R/ folder
 targets::tar_source()
 
@@ -472,11 +469,11 @@ list(
   target_model_metrics,
   # target_model_fits,
   target_model_fit_resamples_spatial,
-  target_model_fit_resamples_spatial_combined
+  # target_model_fit_resamples_spatial_combined
   # target_model_fit_resamples_spatial2,
   # target_model_fit_resamples_spatial2_combined
-  # target_model_fit_split_temporal,
-  # target_model_fit_split_temporal_combined
+  target_model_fit_split_temporal,
+  target_model_fit_split_temporal_combined
   # target_model_fit_resamples_temporal,
   # target_model_fit_resamples_temporal_combined
 )
