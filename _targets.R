@@ -28,7 +28,7 @@ if (targets_cas_local) {
   )
 }
 targets::tar_option_set(
-  packages = c("qs", "sf", "terra", "workflows"),
+  packages = c("qs", "rsample", "sf", "spatialsample", "terra", "workflows"),
   format = "qs",
   repository = repository,
   memory = "transient",
@@ -303,8 +303,7 @@ target_model_workflows <- targets::tar_target(
 target_model_workflows_combined <- targets::tar_target(
   model_workflows_combined,
   command = model_workflows,
-  storage = "worker",
-  retrieval = "worker"
+  deployment = "main"
 )
 
 # define model metrics
@@ -346,15 +345,14 @@ target_model_metrics <- targets::tar_target(
 # fit models
 target_model_fits <- targets::tar_target(
   model_fits,
-  command = parsnip::fit(model_workflows, data = data_analysis),
+  command = generics::fit(model_workflows, data = data_analysis),
   pattern = map(model_workflows),
   iteration = "list"
 )
 target_model_fits_combined <- targets::tar_target(
   model_fits_combined,
   command = model_fits,
-  storage = "worker",
-  retrieval = "worker"
+  deployment = "main"
 )
 
 # fit models via spatial resampling
@@ -377,8 +375,7 @@ target_model_fit_resamples_spatial <- targets::tar_target(
 target_model_fit_resamples_spatial_combined <- targets::tar_target(
   model_fit_resamples_spatial_combined,
   command = model_fit_resamples_spatial,
-  storage = "worker",
-  retrieval = "worker"
+  deployment = "main"
 )
 # target_model_fit_resamples_spatial2 <- targets::tar_target(
 #   model_fit_resamples_spatial2,
@@ -406,25 +403,15 @@ target_model_fit_resamples_spatial_combined <- targets::tar_target(
 # fit models via single temporal split
 target_model_fit_split_temporal <- targets::tar_target(
   model_fit_split_temporal,
-  command = tune::fit_resamples(
-    model_workflows,
-    resamples = data_analysis_split_temporal,
-    metrics = model_metrics,
-    control = tune::control_resamples(
-      extract = function(x) list(workflows::extract_recipe(x),
-                                 workflows::extract_fit_parsnip(x)),
-      save_pred = TRUE,
-      save_workflow = TRUE
-    )
-  ),
+  command = generics::fit(model_workflows,
+                         data = rsample::analysis(data_analysis_split_temporal)),
   pattern = map(model_workflows),
   iteration = "list"
 )
 target_model_fit_split_temporal_combined <- targets::tar_target(
   model_fit_split_temporal_combined,
   command = model_fit_split_temporal,
-  storage = "worker",
-  retrieval = "worker"
+  deployment = "main"
 )
 
 # fit models via temporal resampling
@@ -447,8 +434,7 @@ target_model_fit_resamples_temporal <- targets::tar_target(
 target_model_fit_resamples_temporal_combined <- targets::tar_target(
   model_fit_resamples_temporal_combined,
   command = model_fit_resamples_temporal,
-  storage = "worker",
-  retrieval = "worker"
+  deployment = "main"
 )
 
 # create prediction rasters from fitted models
@@ -486,11 +472,11 @@ list(
   target_model_metrics,
   # target_model_fits,
   target_model_fit_resamples_spatial,
-  target_model_fit_resamples_spatial_combined,
+  target_model_fit_resamples_spatial_combined
   # target_model_fit_resamples_spatial2,
   # target_model_fit_resamples_spatial2_combined
-  target_model_fit_split_temporal,
-  target_model_fit_split_temporal_combined
+  # target_model_fit_split_temporal,
+  # target_model_fit_split_temporal_combined
   # target_model_fit_resamples_temporal,
   # target_model_fit_resamples_temporal_combined
 )
