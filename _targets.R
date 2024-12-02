@@ -1,0 +1,482 @@
+# source targets helper file
+if (fs::file_exists("_targets_helper.R")) {
+  source("_targets_helper.R")
+}
+
+# get configuration values
+config <- config::get(file = "config.yaml")
+
+# source R scripts in the R/ folder
+targets::tar_source()
+
+# set target options
+if (!exists("targets_cas_local")) {
+  targets_cas_local <- FALSE
+}
+if (targets_cas_local) {
+  repository <- targets::tar_repository_cas_local(opt$dir_targets_cas)
+} else {
+  repository <- targets::tar_repository_cas(upload = azure_upload,
+                                            download = azure_download,
+                                            exists = azure_exists)
+  token <- azure_auth_token()
+  token$refresh()
+  resources <- targets::tar_resources(
+    repository_cas = targets::tar_resources_repository_cas(
+      envvars = c(TARGETS_AUTH_TOKEN = token$credentials$access_token)
+    )
+  )
+}
+targets::tar_option_set(
+  packages = c("qs", "rsample", "sf", "spatialsample", "terra", "workflows"),
+  format = "qs",
+  repository = repository,
+  memory = "transient",
+  garbage_collection = TRUE,
+  resources = if (targets_cas_local) NULL else resources,
+  cue = targets::tar_cue(repository = FALSE),
+  controller = crew::crew_controller_local(
+    # workers = parallel::detectCores() - 1,
+    workers = 12,
+    seconds_idle = 30,
+    # launch_max = 10,
+    garbage_collection = TRUE
+  )
+)
+
+# specify targets ---------------------------------------------------------
+# 10-km prediction grid
+target_grid_10km <- targets::tar_target(
+  grid_10km,
+  command = create_targets_data_command("grid-10km.tiff",
+                                        local = targets_cas_local) |>
+    eval(),
+  format = define_tar_format_terra_rast("GTiff"),
+  storage = "worker",
+  retrieval = "worker",
+  cue = targets::tar_cue("never")
+)
+
+# bird species codes
+target_data_species_info <- targets::tar_target(
+  data_species_info,
+  command = create_targets_data_command("species-data/species-info.csv",
+                                        local = targets_cas_local) |>
+    eval() |>
+    tibble::as_tibble(.name_repair = janitor::make_clean_names),
+  cue = targets::tar_cue("never")
+)
+
+# "raw" marine bird data
+target_data_bird_raw <- targets::tar_target(
+  data_bird_raw,
+  command = create_targets_data_command("species-data/segmented-data.csv",
+                                        local = targets_cas_local) |>
+    eval() |>
+    tibble::as_tibble(.name_repair = janitor::make_clean_names),
+  cue = targets::tar_cue("never")
+)
+
+# project marine bird data onto 10-km grid and aggregate by <grid-cell, date, survey_id>
+target_data_bird_10km <- targets::tar_target(
+  data_bird_10km,
+  command = prepare_data_bird(data_bird_raw, grid = grid_10km),
+  storage = "worker",
+  retrieval = "worker"
+)
+
+# 1980-2010 hindcast predictor data sampled at marine bird data locations and months
+target_data_bird_10km_wc12 <- targets::tar_target(
+  data_bird_10km_wc12,
+  command = create_targets_data_command("species-data/segmented-data-10km-daily-wc12.csv",
+                                        local = targets_cas_local) |>
+    eval() |>
+    tibble::as_tibble(.name_repair = janitor::make_clean_names) |>
+    prepare_data_covariates(label = "hindcast"),
+  cue = targets::tar_cue("never")
+)
+
+# 1980-2010 reanalysis predictor data sampled at marine bird data locations and months
+target_data_bird_10km_wcra31 <- targets::tar_target(
+  data_bird_10km_wcra31,
+  command = create_targets_data_command("species-data/segmented-data-10km-daily-wcra31.csv",
+                                        local = targets_cas_local) |>
+    eval() |>
+    tibble::as_tibble(.name_repair = janitor::make_clean_names) |>
+    prepare_data_covariates(label = "reanalysis"),
+  cue = targets::tar_cue("never")
+)
+
+# 2011-24 reanalysis predictor data sampled at marine bird data locations and months
+target_data_bird_10km_wcnrt <- targets::tar_target(
+  data_bird_10km_wcnrt,
+  command = create_targets_data_command("species-data/segmented-data-10km-daily-wcnrt.csv",
+                                        local = targets_cas_local) |>
+    eval() |>
+    tibble::as_tibble(.name_repair = janitor::make_clean_names) |>
+    prepare_data_covariates(label = "reanalysis"),
+  cue = targets::tar_cue("never")
+)
+
+# daily climate projection data
+values_climate <- tibble::tibble(
+  variable = c("bbv_200",
+               "chl_surf",
+               "curl",
+               "eke",
+               "ild_05",
+               "ssh",
+               "sst",
+               "su",
+               "sustr",
+               "sv",
+               "svstr",
+               "zoo_50m_int",
+               "zoo_100m_int",
+               "zoo_200m_int"),
+  file = stringr::str_c(variable, "_daily.nc")
+) |>
+  head(n = 1)
+target_data_climate <- tarchetypes::tar_map(
+  values = values_climate,
+  names = "variable",
+  targets::tar_target(
+    data_gfdl_10km,
+    command = {
+      r <- create_targets_data_command(fs::path("environmental-data", "gfdl",
+                                                file),
+                                       local = targets_cas_local) |>
+        eval()
+      terra::set.values(r)
+      terra::project(r, y = grid_10km)
+    },
+    format = define_tar_format_terra_rast("GTiff"),
+    deployment = "main",
+    cue = targets::tar_cue("never")
+  )
+)
+
+# project bathymetry layer onto 10-km grid
+target_data_bathy_10km <- targets::tar_target(
+  data_bathy_10km,
+  command = create_targets_data_command("environmental-data/gebco_2024_sub_ice_n90.0_s0.0_w-180.0_e-90.0.tiff",
+                                        local = targets_cas_local) |>
+    eval() |>
+    terra::project(y = grid_10km),
+  format = define_tar_format_terra_rast("GTiff"),
+  storage = "worker",
+  retrieval = "worker",
+  cue = targets::tar_cue("never")
+)
+
+# create slope raster layer
+target_data_slope_10km <- targets::tar_target(
+  data_slope_10km,
+  command = MultiscaleDTM::SlpAsp(data_bathy_10km, w = c(3, 3),
+                                  method = "queen", metrics = "slope"),
+  format = define_tar_format_terra_rast("GTiff"),
+  storage = "worker",
+  retrieval = "worker"
+)
+
+# mask predictor data near edges
+target_data_climate_mask <- targets::tar_target(
+  data_climate_mask,
+  command = {
+    r <- create_targets_data_command(fs::path("environmental-data", "gfdl",
+                                              "sst_daily.nc"),
+                                     local = targets_cas_local) |>
+      eval() |>
+      terra::subset(subset = 1)
+    mat <- terra::as.matrix(r, wide = TRUE)
+    mat[c(1:5, (nrow(mat) - 4):nrow(mat)), ] <- NA
+    mat[, 1:5] <- NA
+    terra::values(r) <- mat
+    r_proj <- terra::project(r, y = grid_10km)
+    r_proj[!is.na(r_proj)] <- 1
+    r_proj
+  },
+  format = define_tar_format_terra_rast("GTiff"),
+  deployment = "main",
+  cue = targets::tar_cue("never")
+)
+
+# create analysis dataset
+target_data_analysis <- targets::tar_target(
+  data_analysis,
+  command = {
+    data <- prepare_data_analysis(
+      data_bird_10km,
+      data_covariates = list(data_bird_10km_wc12,
+                             dplyr::bind_rows(data_bird_10km_wcra31,
+                                              data_bird_10km_wcnrt)),
+      add = list(depth = data_bathy_10km,
+                 slope = data_slope_10km)
+    )
+    temp <- terra::extract(data_climate_mask, data, ID = FALSE)
+    data[!is.na(temp), ]
+  }
+)
+
+# subset of analysis dataset to use for development purposes
+target_data_analysis_dev <- targets::tar_target(
+  data_analysis_dev,
+  command = rsample::initial_split(data_analysis, prop = 0.1, strata = platform) |>
+    rsample::training()
+)
+
+# subset of analysis dataset to use for testing purposes
+target_data_analysis_test <- targets::tar_target(
+  data_analysis_test,
+  command = rsample::initial_split(data_analysis, prop = 0.4, strata = platform) |>
+    rsample::training()
+)
+
+# define single data split
+target_data_analysis_split <- targets::tar_target(
+  data_analysis_split,
+  command = rsample::initial_split(data_analysis)
+)
+
+# define single temporal split
+target_data_analysis_split_temporal <- targets::tar_target(
+  data_analysis_split_temporal,
+  command = data_analysis |>
+    dplyr::filter(date < "2011-01-01") |>
+    dplyr::arrange(date, survey_id) |>
+    rsample::initial_time_split(prop = 0.85)
+)
+
+# define spatial data resamples
+target_data_analysis_resamples_spatial <- targets::tar_target(
+  data_analysis_resamples_spatial,
+  command = data_analysis |>
+    spatialsample::spatial_block_cv(v = 5) |>
+    filter_rset_data(date < "2011-01-01", .split = "assessment")
+)
+
+# define temporal data resamples
+target_data_analysis_resamples_temporal <- targets::tar_target(
+  data_analysis_resamples_temporal,
+  command = data_analysis |>
+    dplyr::filter(date < "2011-01-01") |>
+    dplyr::arrange(date, survey_id) |>
+    rolling_origin_prop_splits(prop = 0.15)
+)
+
+# define bootstrap resamples
+target_data_analysis_resamples_bootstrap <- targets::tar_target(
+  data_analysis_resamples_bootstrap,
+  command = rsample::bootstraps(data_analysis, times = 1000),
+  storage = "worker",
+  retrieval = "worker"
+)
+
+# create data frame of species to model
+target_species_to_model <- targets::tar_target(
+  species_to_model,
+  command = create_species_to_model_df(data_analysis,
+                                       species_info_df = data_species_info,
+                                       threshold = 50)
+)
+
+# create data frame of models to run
+target_models_to_run <- targets::tar_target(
+  models_to_run,
+  command = create_models_to_run_df(species_to_model) |>
+    dplyr::filter(!spatial_random_effect,
+                  stringr::str_starts(code, pattern = "grp_", negate = TRUE))
+)
+
+# define model workflows
+target_model_workflows <- targets::tar_target(
+  model_workflows,
+  command = define_model_workflow(as.formula(models_to_run$model_formula),
+                                  data = data_analysis,
+                                  species_size_class = models_to_run$size_class,
+                                  mgcv_select = TRUE,
+                                  mgcv_gamma = models_to_run$mgcv_gamma),
+  pattern = map(models_to_run) |>
+    head(n = 160),
+  iteration = "list"
+)
+target_model_workflows_combined <- targets::tar_target(
+  model_workflows_combined,
+  command = model_workflows,
+  deployment = "main"
+)
+
+# define model metrics
+target_model_metrics <- targets::tar_target(
+  model_metrics,
+  command = yardstick::metric_set(yardstick::ccc,
+                                  yardstick::huber_loss,
+                                  yardstick::huber_loss_pseudo,
+                                  yardstick::iic,
+                                  yardstick::mae,
+                                  yardstick::mape,
+                                  yardstick::mase,
+                                  yardstick::mpe,
+                                  yardstick::msd,
+                                  yardstick::poisson_log_loss,
+                                  yardstick::rmse,
+                                  yardstick::rpd,
+                                  yardstick::rpiq,
+                                  yardstick::rsq,
+                                  yardstick::rsq_trad,
+                                  yardstick::smape)
+)
+
+# # compare hindcast vs. reanalysis
+#
+#
+# # testing
+# target_test <- targets::tar_target(
+#   test,
+#   command = {workflowsets::workflow_set()}
+# )
+# target_model_tests <- targets::tar_target(
+#   model_tests,
+#   command = {},
+#   pattern = workflowsets::workflow_map(),
+#   iteration = "list"
+# )
+
+# fit models
+target_model_fits <- targets::tar_target(
+  model_fits,
+  command = generics::fit(model_workflows, data = data_analysis),
+  pattern = map(model_workflows),
+  iteration = "list"
+)
+target_model_fits_combined <- targets::tar_target(
+  model_fits_combined,
+  command = model_fits,
+  deployment = "main"
+)
+
+# fit models via spatial resampling
+target_model_fit_resamples_spatial <- targets::tar_target(
+  model_fit_resamples_spatial,
+  command = tune::fit_resamples(
+    model_workflows,
+    resamples = data_analysis_resamples_spatial,
+    metrics = model_metrics,
+    control = tune::control_resamples(
+      extract = function(x) list(workflows::extract_recipe(x),
+                                 workflows::extract_fit_parsnip(x)),
+      save_pred = TRUE,
+      save_workflow = TRUE
+    )
+  ),
+  pattern = map(model_workflows),
+  iteration = "list"
+)
+target_model_fit_resamples_spatial_combined <- targets::tar_target(
+  model_fit_resamples_spatial_combined,
+  command = model_fit_resamples_spatial,
+  deployment = "main"
+)
+# target_model_fit_resamples_spatial2 <- targets::tar_target(
+#   model_fit_resamples_spatial2,
+#   command = tune::fit_resamples(
+#     model_workflows,
+#     resamples = rsample::manual_rset(data_analysis_resamples_spatial$splits,
+#                                      data_analysis_resamples_spatial$id),
+#     metrics = model_metrics,
+#     control = tune::control_resamples(
+#       extract = function(x) list(workflows::extract_recipe(x),
+#                                  workflows::extract_fit_parsnip(x)),
+#       save_pred = TRUE,
+#       save_workflow = TRUE
+#     )
+#   ),
+#   pattern = cross(model_workflows, data_analysis_resamples_spatial),
+#   iteration = "list"
+# )
+# target_model_fit_resamples_spatial2_combined <- targets::tar_target(
+#   model_fit_resamples_spatial2_combined,
+#   command = model_fit_resamples_spatial2,
+#   deployment = "main"
+# )
+
+# fit models via single temporal split
+target_model_fit_split_temporal <- targets::tar_target(
+  model_fit_split_temporal,
+  command = generics::fit(model_workflows,
+                         data = rsample::analysis(data_analysis_split_temporal)),
+  pattern = map(model_workflows),
+  iteration = "list"
+)
+target_model_fit_split_temporal_combined <- targets::tar_target(
+  model_fit_split_temporal_combined,
+  command = model_fit_split_temporal,
+  deployment = "main"
+)
+
+# fit models via temporal resampling
+target_model_fit_resamples_temporal <- targets::tar_target(
+  model_fit_resamples_temporal,
+  command = tune::fit_resamples(
+    model_workflows,
+    resamples = data_analysis_resamples_temporal,
+    metrics = model_metrics,
+    control = tune::control_resamples(
+      extract = function(x) list(workflows::extract_recipe(x),
+                                 workflows::extract_fit_parsnip(x)),
+      save_pred = TRUE,
+      save_workflow = TRUE
+    )
+  ),
+  pattern = map(model_workflows),
+  iteration = "list"
+)
+target_model_fit_resamples_temporal_combined <- targets::tar_target(
+  model_fit_resamples_temporal_combined,
+  command = model_fit_resamples_temporal,
+  deployment = "main"
+)
+
+# create prediction rasters from fitted models
+# target_model_predictions <- targets::tar_target(
+#   model_predictions,
+#   command = predict(model_fits, new_data = new_data, type = "raw",
+#                     opts = list(type = "response", exclude = "s(survey_id)"))
+# )
+
+# submit targets ----------------------------------------------------------
+list(
+  target_grid_10km,
+  target_data_species_info,
+  target_data_bird_raw,
+  target_data_bird_10km,
+  target_data_bird_10km_wc12,
+  target_data_bird_10km_wcra31,
+  target_data_bird_10km_wcnrt,
+  # target_data_climate,
+  target_data_climate_mask,
+  target_data_bathy_10km,
+  target_data_slope_10km,
+  target_data_analysis,
+  target_data_analysis_dev,
+  target_data_analysis_test,
+  target_data_analysis_split,
+  target_data_analysis_split_temporal,
+  target_data_analysis_resamples_spatial,
+  target_data_analysis_resamples_temporal,
+  # target_data_analysis_resamples_bootstrap,
+  target_species_to_model,
+  target_models_to_run,
+  target_model_workflows,
+  # target_model_workflows_combined,
+  target_model_metrics,
+  # target_model_fits,
+  target_model_fit_resamples_spatial,
+  target_model_fit_resamples_spatial_combined
+  # target_model_fit_resamples_spatial2,
+  # target_model_fit_resamples_spatial2_combined
+  # target_model_fit_split_temporal,
+  # target_model_fit_split_temporal_combined
+  # target_model_fit_resamples_temporal,
+  # target_model_fit_resamples_temporal_combined
+)

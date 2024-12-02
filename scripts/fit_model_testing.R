@@ -168,3 +168,29 @@ mod <- parsnip::gen_additive_mod(adjust_deg_free = mgcv_gamma) |>
   parsnip::fit(form, data = dplyr::rename(dat, count = tolower(sp)))
 summary(mod$fit)
 mgcv::plot.gam(mod$fit, pages = 1, scale = 0)
+
+
+targets::tar_load_globals()
+tar_load_azure_store("data_analysis")
+data_analysis$date_doy <- lubridate::yday(data_analysis$date)
+
+m1 <- mgcv::gam(susc ~ s(date_doy, bs = "cc"),
+                data = data_analysis,
+                family = mgcv::nb())
+mgcv::plot.gam(m1, rug = TRUE, se = TRUE, pages = 1, scale = 0, shade = TRUE)
+
+m2 <- mgcv::gam(susc ~ s(date_doy, bs = "cc"),
+                data = data_analysis,
+                family = mgcv::nb(),
+                knots = list(date_doy = c(1, 366)))
+mgcv::plot.gam(m2, rug = TRUE, se = TRUE, pages = 1, scale = 0, shade = TRUE)
+
+newdata <- tibble::tibble(date_doy = 1:366)
+m1_pred <- tibble::tibble(model = "m1", .pred = mgcv::predict.gam(m1, newdata = newdata, type = "link")) |>
+  dplyr::bind_cols(newdata)
+m2_pred <- tibble::tibble(model = "m2", .pred = mgcv::predict.gam(m2, newdata = newdata, type = "link")) |>
+  dplyr::bind_cols(newdata)
+preds <- dplyr::bind_rows(m1_pred, m2_pred)
+
+ggplot2::ggplot(data = preds, mapping = ggplot2::aes(date_doy, .pred, group = model, color = model)) +
+  ggplot2::geom_line()
