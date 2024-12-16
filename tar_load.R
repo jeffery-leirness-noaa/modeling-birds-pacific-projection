@@ -177,6 +177,10 @@ purrr::map(model_fit_resamples_spatial_combined,
   purrr::list_rbind()
 
 
+
+
+
+# model_fit_resamples_spatial_combined ------------------------------------
 metrics <- list()
 for (i in seq(along = model_fit_resamples_spatial_combined)) {
   metrics_i <- tune::collect_metrics(model_fit_resamples_spatial_combined[[i]])
@@ -213,6 +217,43 @@ metrics |>
                    min_covariate = covariate_prefix[which.min(mean)],
                    min_gamma = mgcv_gamma[which.min(mean)]) |>
   janitor::tabyl(min_covariate)
+
+
+
+
+
+# model_performance_split_temporal_combined -------------------------------
+metrics <- list()
+for (i in seq(along = model_performance_split_temporal_combined)) {
+  metrics_i <- model_performance_split_temporal_combined[[i]]
+  metrics[[i]] <- dplyr::slice(models_to_run, i) |>
+    dplyr::select(!model_formula) |>
+    dplyr::bind_cols(metrics_i)
+}
+metrics <- purrr::list_rbind(metrics)
+sp <- "pfsh"
+met <- "mae"
+ggplot2::ggplot(metrics |>
+                  dplyr::filter(code == sp,
+                                .metric == met),
+                mapping = ggplot2::aes(mgcv_gamma, .estimate,
+                                       group = covariate_prefix,
+                                       color = covariate_prefix)) +
+  ggplot2::geom_line() +
+  ggplot2::labs(title = sp, subtitle = met)
+
+metrics |>
+  dplyr::filter(.metric == met) |>
+  dplyr::group_by(code) |>
+  dplyr::summarise(min_rmse = min(.estimate),
+                   min_covariate = covariate_prefix[which.min(.estimate)],
+                   min_gamma = mgcv_gamma[which.min(.estimate)]) |>
+  janitor::tabyl(min_covariate)
+
+
+
+
+
 
 
 
