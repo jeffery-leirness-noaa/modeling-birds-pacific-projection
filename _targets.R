@@ -31,12 +31,13 @@ targets::tar_option_set(
   memory = "transient",
   garbage_collection = TRUE,
   resources = if (targets_cas_local) NULL else resources,
+  storage = "worker",
+  retrieval = "worker",
   cue = targets::tar_cue(repository = FALSE),
   controller = crew::crew_controller_local(
     # workers = parallel::detectCores() - 1,
     workers = 12,
     seconds_idle = 30,
-    # launch_max = 10,
     garbage_collection = TRUE
   )
 )
@@ -49,8 +50,6 @@ target_grid_10km <- targets::tar_target(
                                         local = targets_cas_local) |>
     eval(),
   format = define_tar_format_terra_rast("GTiff"),
-  storage = "worker",
-  retrieval = "worker",
   cue = targets::tar_cue("never")
 )
 
@@ -77,9 +76,7 @@ target_data_bird_raw <- targets::tar_target(
 # project marine bird data onto 10-km grid and aggregate by <grid-cell, date, survey_id>
 target_data_bird_10km <- targets::tar_target(
   data_bird_10km,
-  command = prepare_data_bird(data_bird_raw, grid = grid_10km),
-  storage = "worker",
-  retrieval = "worker"
+  command = prepare_data_bird(data_bird_raw, grid = grid_10km)
 )
 
 # 1980-2010 hindcast predictor data sampled at marine bird data locations and months
@@ -161,8 +158,6 @@ target_data_bathy_10km <- targets::tar_target(
     eval() |>
     terra::project(y = grid_10km),
   format = define_tar_format_terra_rast("GTiff"),
-  storage = "worker",
-  retrieval = "worker",
   cue = targets::tar_cue("never")
 )
 
@@ -171,9 +166,7 @@ target_data_slope_10km <- targets::tar_target(
   data_slope_10km,
   command = MultiscaleDTM::SlpAsp(data_bathy_10km, w = c(3, 3),
                                   method = "queen", metrics = "slope"),
-  format = define_tar_format_terra_rast("GTiff"),
-  storage = "worker",
-  retrieval = "worker"
+  format = define_tar_format_terra_rast("GTiff")
 )
 
 # mask predictor data near edges
@@ -264,9 +257,7 @@ target_data_analysis_resamples_temporal <- targets::tar_target(
 # define bootstrap resamples
 target_data_analysis_resamples_bootstrap <- targets::tar_target(
   data_analysis_resamples_bootstrap,
-  command = rsample::bootstraps(data_analysis, times = 1000),
-  storage = "worker",
-  retrieval = "worker"
+  command = rsample::bootstraps(data_analysis, times = 1000)
 )
 
 # create data frame of species to model
@@ -293,14 +284,13 @@ target_model_workflows <- targets::tar_target(
                                   species_size_class = models_to_run$size_class,
                                   mgcv_select = TRUE,
                                   mgcv_gamma = models_to_run$mgcv_gamma),
-  pattern = map(models_to_run) |>
-    head(n = 160),
+  pattern = map(models_to_run),
   iteration = "list"
 )
 target_model_workflows_combined <- targets::tar_target(
   model_workflows_combined,
-  command = model_workflows,
-  deployment = "main"
+  command = model_workflows
+  # deployment = "main"
 )
 
 # define model metrics
@@ -348,8 +338,8 @@ target_model_fits <- targets::tar_target(
 )
 target_model_fits_combined <- targets::tar_target(
   model_fits_combined,
-  command = model_fits,
-  deployment = "main"
+  command = model_fits
+  # deployment = "main"
 )
 
 # fit models via spatial resampling
@@ -371,8 +361,8 @@ target_model_fit_resamples_spatial <- targets::tar_target(
 )
 target_model_fit_resamples_spatial_combined <- targets::tar_target(
   model_fit_resamples_spatial_combined,
-  command = model_fit_resamples_spatial,
-  deployment = "main"
+  command = model_fit_resamples_spatial
+  # deployment = "main"
 )
 # target_model_fit_resamples_spatial2 <- targets::tar_target(
 #   model_fit_resamples_spatial2,
@@ -401,14 +391,33 @@ target_model_fit_resamples_spatial_combined <- targets::tar_target(
 target_model_fit_split_temporal <- targets::tar_target(
   model_fit_split_temporal,
   command = generics::fit(model_workflows,
-                         data = rsample::analysis(data_analysis_split_temporal)),
+                          data = rsample::analysis(data_analysis_split_temporal)),
   pattern = map(model_workflows),
   iteration = "list"
 )
 target_model_fit_split_temporal_combined <- targets::tar_target(
   model_fit_split_temporal_combined,
-  command = model_fit_split_temporal,
-  deployment = "main"
+  command = model_fit_split_temporal
+  # deployment = "main"
+)
+target_model_performance_split_temporal <- targets::tar_target(
+  model_performance_split_temporal,
+  command = {
+    outcome_name <- workflows::extract_mold(model_fit_split_temporal)$outcomes |>
+      names()
+    new_data <- predict(model_fit_split_temporal,
+                        new_data = rsample::assessment(data_analysis_split_temporal)) |>
+      dplyr::bind_cols(rsample::assessment(data_analysis_split_temporal)) |>
+      dplyr::rename(tidyselect::all_of(c(.obs = outcome_name)))
+    model_metrics(new_data, truth = .obs, estimate = .pred)
+  },
+  pattern = map(model_fit_split_temporal),
+  iteration = "list"
+)
+target_model_performance_split_temporal_combined <- targets::tar_target(
+  model_performance_split_temporal_combined,
+  command = model_performance_split_temporal
+  # deployment = "main"
 )
 
 # fit models via temporal resampling
@@ -430,8 +439,8 @@ target_model_fit_resamples_temporal <- targets::tar_target(
 )
 target_model_fit_resamples_temporal_combined <- targets::tar_target(
   model_fit_resamples_temporal_combined,
-  command = model_fit_resamples_temporal,
-  deployment = "main"
+  command = model_fit_resamples_temporal
+  # deployment = "main"
 )
 
 # create prediction rasters from fitted models
@@ -468,12 +477,14 @@ list(
   # target_model_workflows_combined,
   target_model_metrics,
   # target_model_fits,
-  target_model_fit_resamples_spatial,
-  # target_model_fit_resamples_spatial_combined
+  # target_model_fit_resamples_spatial,
+  # target_model_fit_resamples_spatial_combined,
   # target_model_fit_resamples_spatial2,
   # target_model_fit_resamples_spatial2_combined
   target_model_fit_split_temporal,
-  target_model_fit_split_temporal_combined
+  # target_model_fit_split_temporal_combined,
+  target_model_performance_split_temporal,
+  target_model_performance_split_temporal_combined
   # target_model_fit_resamples_temporal,
   # target_model_fit_resamples_temporal_combined
 )
