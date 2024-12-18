@@ -244,6 +244,11 @@ target_data_analysis_resamples_spatial <- targets::tar_target(
     spatialsample::spatial_block_cv(v = 5) |>
     filter_rset_data(date < "2011-01-01", .split = "assessment")
 )
+target_data_analysis_resamples_spatial_all <- targets::tar_target(
+  data_analysis_resamples_spatial_all,
+  command = data_analysis |>
+    spatialsample::spatial_block_cv(v = 5)
+)
 
 # define temporal data resamples
 target_data_analysis_resamples_temporal <- targets::tar_target(
@@ -364,28 +369,28 @@ target_model_fit_resamples_spatial_combined <- targets::tar_target(
   command = model_fit_resamples_spatial
   # deployment = "main"
 )
-# target_model_fit_resamples_spatial2 <- targets::tar_target(
-#   model_fit_resamples_spatial2,
-#   command = tune::fit_resamples(
-#     model_workflows,
-#     resamples = rsample::manual_rset(data_analysis_resamples_spatial$splits,
-#                                      data_analysis_resamples_spatial$id),
-#     metrics = model_metrics,
-#     control = tune::control_resamples(
-#       extract = function(x) list(workflows::extract_recipe(x),
-#                                  workflows::extract_fit_parsnip(x)),
-#       save_pred = TRUE,
-#       save_workflow = TRUE
-#     )
-#   ),
-#   pattern = cross(model_workflows, data_analysis_resamples_spatial),
-#   iteration = "list"
-# )
-# target_model_fit_resamples_spatial2_combined <- targets::tar_target(
-#   model_fit_resamples_spatial2_combined,
-#   command = model_fit_resamples_spatial2,
-#   deployment = "main"
-# )
+target_model_fit_resamples_spatial_all <- targets::tar_target(
+  model_fit_resamples_spatial_all,
+  command = tune::fit_resamples(
+    model_workflows,
+    resamples = data_analysis_resamples_spatial_all,
+    metrics = model_metrics,
+    control = tune::control_resamples(
+      extract = function(x) list(workflows::extract_recipe(x),
+                                 workflows::extract_fit_parsnip(x)),
+      save_pred = TRUE,
+      save_workflow = TRUE
+    )
+  ),
+  pattern = map(model_workflows) |>
+    slice(index = c(125:128, 133:136, 293:296, 429:432)),
+  iteration = "list"
+)
+target_model_fit_resamples_spatial_all_combined <- targets::tar_target(
+  model_fit_resamples_spatial_all_combined,
+  command = model_fit_resamples_spatial_all
+  # deployment = "main"
+)
 
 # fit models via single temporal split
 target_model_fit_split_temporal <- targets::tar_target(
@@ -469,6 +474,7 @@ list(
   target_data_analysis_split,
   target_data_analysis_split_temporal,
   target_data_analysis_resamples_spatial,
+  target_data_analysis_resamples_spatial_all,
   target_data_analysis_resamples_temporal,
   # target_data_analysis_resamples_bootstrap,
   target_species_to_model,
@@ -479,8 +485,8 @@ list(
   # target_model_fits,
   # target_model_fit_resamples_spatial,
   # target_model_fit_resamples_spatial_combined,
-  # target_model_fit_resamples_spatial2,
-  # target_model_fit_resamples_spatial2_combined
+  target_model_fit_resamples_spatial_all,
+  target_model_fit_resamples_spatial_all_combined,
   target_model_fit_split_temporal,
   # target_model_fit_split_temporal_combined,
   target_model_performance_split_temporal,
