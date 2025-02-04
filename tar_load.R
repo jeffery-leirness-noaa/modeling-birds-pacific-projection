@@ -223,6 +223,8 @@ metrics |>
 
 
 # model_performance_split_temporal_combined -------------------------------
+tar_load_azure_store("models_to_run")
+tar_load_azure_store("model_performance_split_temporal_combined")
 metrics <- list()
 for (i in seq(along = model_performance_split_temporal_combined)) {
   metrics_i <- model_performance_split_temporal_combined[[i]]
@@ -250,7 +252,13 @@ metrics |>
                    min_gamma = mgcv_gamma[which.min(.estimate)]) |>
   janitor::tabyl(min_covariate)
 
-
+metrics |>
+  dplyr::filter(.metric == met) |>
+  dplyr::group_by(code) |>
+  dplyr::summarise(min_rmse = min(.estimate),
+                   min_covariate = covariate_prefix[which.min(.estimate)],
+                   min_gamma = mgcv_gamma[which.min(.estimate)]) |>
+  janitor::tabyl(min_gamma)
 
 
 

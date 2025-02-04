@@ -405,6 +405,17 @@ target_model_fit_split_temporal_combined <- targets::tar_target(
   command = model_fit_split_temporal
   # deployment = "main"
 )
+target_model_summary_split_temporal <- targets::tar_target(
+  model_summary_split_temporal,
+  command = broom::tidy(model_fit_split_temporal),
+  pattern = map(model_fit_split_temporal),
+  iteration = "list"
+)
+target_model_summary_split_temporal_combined <- targets::tar_target(
+  model_summary_split_temporal_combined,
+  command = model_summary_split_temporal
+  # deployment = "main"
+)
 target_model_performance_split_temporal <- targets::tar_target(
   model_performance_split_temporal,
   command = {
@@ -489,6 +500,8 @@ list(
   target_model_fit_resamples_spatial_all_combined,
   target_model_fit_split_temporal,
   # target_model_fit_split_temporal_combined,
+  target_model_summary_split_temporal,
+  target_model_summary_split_temporal_combined,
   target_model_performance_split_temporal,
   target_model_performance_split_temporal_combined
   # target_model_fit_resamples_temporal,
