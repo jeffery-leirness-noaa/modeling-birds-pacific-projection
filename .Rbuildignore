@@ -2,3 +2,6 @@
 ^renv$
 ^renv\.lock$
 ^LICENSE\.md$
+^docker$
+^.*\.Rproj$
+^\.Rproj\.user$

@@ -1,5 +1,5 @@
 # specify path to data used in OCS Study BOEM 2021-014
-dir_in <- "D:/ccma/BIOGEO/Projects/Pacific_Seabird_Modeling/Analysis/Phase2/Data"
+dir_in <- "K:/_BioGeoProjects/Pacific_Seabird_Modeling/Analysis/Phase2/Data"
 
 # load analysis datasets from OCS Study BOEM 2021-014
 dat <- dir_in |>
@@ -19,6 +19,6 @@ dplyr::bind_rows(dat, dat_mamu) |>
   tibble::as_tibble(.name_repair = janitor::make_clean_names) |>
   dplyr::mutate(date = lubridate::as_date(paste(year, month, day, sep = "-")),
                 .before = dplyr::everything()) |>
-  dplyr::select(!c(year, month, day, season, chla:index_pdo_lag12)) |>
+  dplyr::select(!c(year, month, day, season, prlon:index_pdo_lag12)) |>
   dplyr::arrange(date, survey_id, transect_id, segment_id) |>
   readr::write_csv(file = "data/segmented-data.csv")

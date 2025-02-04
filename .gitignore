@@ -7,4 +7,6 @@
 *.amltmp
 *.amltemp
 *.amlsas
-_targets*/
+public/
+resources/
+model_performance_hindcast_reanalysis_files/

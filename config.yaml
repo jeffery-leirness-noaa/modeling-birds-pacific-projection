@@ -1,9 +1,0 @@
-default:
-  target: "data_covariates"
-  aml_env: "azureml://registries/nccos-registry-ml/environments/nccos-leirness-modeling-birds-pacific-projection/versions/5"
-
-dev:
-  target: "data_covariates_dev"
-
-test:
-  target: "data_covariates_test"
