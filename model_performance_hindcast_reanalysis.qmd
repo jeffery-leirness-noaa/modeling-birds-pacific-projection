@@ -1,18 +1,50 @@
 ---
-title: "Comparing results of 'hindcast' vs. 'reanalysis' variables"
+title: "Comparing results of models fitted with 'hindcast' vs. 'reanalysis' variables"
+author: "Jeffery Leirness"
+date: last-modified
+format: pdf
+toc: true
+number-sections: true
 execute:
   echo: false
-format: html
+# params:
+#   data_species_info: "default value"
+#   data_analysis_split_temporal: "default value"
+#   models_to_run: "default value"
+#   model_metrics: "default value"
+#   model_summary_split_temporal_combined: "default value"
+#   model_performance_split_temporal_combined: "default value"
 ---
 
 ```{r}
 #| include: false
-targets::tar_load_globals()
-tar_load_azure_store("data_species_info")
-tar_load_azure_store("models_to_run")
-tar_load_azure_store("model_metrics")
-tar_load_azure_store("model_summary_split_temporal_combined")
-tar_load_azure_store("model_performance_split_temporal_combined")
+
+library(sf)
+# data_species_info <- params$data_species_info
+# data_analysis_split_temporal <- params$data_analysis_split_temporal
+# models_to_run <- params$models_to_run
+# model_metrics <- params$model_metrics
+# model_summary_split_temporal_combined <- params$model_summary_split_temporal_combined
+# model_performance_split_temporal_combined <- params$model_performance_split_temporal_combined
+# targets::tar_load(c(data_species_info,
+#                     data_analysis_split_temporal,
+#                     models_to_run,
+#                     model_metrics,
+#                     model_summary_split_temporal_combined,
+#                     model_performance_split_temporal_combined))
+# targets::tar_load_globals()
+# tar_load_azure_store("data_species_info")
+# tar_load_azure_store("data_analysis_split_temporal")
+# tar_load_azure_store("models_to_run")
+# tar_load_azure_store("model_metrics")
+# tar_load_azure_store("model_summary_split_temporal_combined")
+# tar_load_azure_store("model_performance_split_temporal_combined")
+data_species_info <- readRDS("data/data_species_info.rds")
+data_analysis_split_temporal <- readRDS("data/data_analysis_split_temporal.rds")
+models_to_run <- readRDS("data/models_to_run.rds")
+model_metrics <- readRDS("data/model_metrics.rds")
+model_summary_split_temporal_combined <- readRDS("data/model_summary_split_temporal_combined.rds")
+model_performance_split_temporal_combined <- readRDS("data/model_performance_split_temporal_combined.rds")
 
 model_summary <- list()
 for (i in seq(along = model_summary_split_temporal_combined)) {
@@ -61,7 +93,38 @@ best_metrics <- metrics |>
   )
 ```
 
-# Summary
+## Overall summary
+
+### Temporal data split
+
+```{r}
+dat1 <- data_analysis_split_temporal |>
+  rsample::analysis() |>
+  dplyr::mutate(set = "analysis")
+dat2 <- data_analysis_split_temporal |>
+  rsample::assessment() |>
+  dplyr::mutate(set = "assessment")
+dplyr::bind_rows(dat1, dat2) |>
+  ggplot2::ggplot() +
+  ggplot2::geom_sf() +
+  ggplot2::facet_wrap(~ set)
+
+data_analysis_split_temporal |>
+  rsample::analysis() |>
+  tibble::as_tibble() |>
+  dplyr::mutate(year = lubridate::year(date)) |>
+  janitor::tabyl(year) |>
+  knitr::kable(digits = 3, caption = "Analysis set (first 85% of pre-2011 data)")
+
+data_analysis_split_temporal |>
+  rsample::assessment() |>
+  tibble::as_tibble() |>
+  dplyr::mutate(year = lubridate::year(date)) |>
+  janitor::tabyl(year) |>
+  knitr::kable(digits = 3, caption = "Assessment set (last 15% of pre-2011 data)")
+```
+
+### Summary of "best" models for each species
 
 ```{r}
 janitor::tabyl(best_metrics, .metric, best_covariate) |>
@@ -71,7 +134,7 @@ janitor::tabyl(best_metrics, .metric, best_covariate) |>
                caption = "Proportion of 'best' models (as chosen by each metric) that utilized the reanalysis covariates")
 ```
 
-## Variable 'importance'
+### Variable 'importance'
 
 ```{r}
 best_model_summary |>
@@ -116,10 +179,11 @@ best_model_summary |>
 #   janitor::tabyl(min_covariate, min_gamma)
 ```
 
-# Plots of performance metrics
+## Species-specific summaries
 
 ```{r}
 #| include: false
+
 spp <- unique(models_to_run$code)
 spp_nm <- dplyr::filter(data_species_info, tolower(code) %in% spp) |> 
   dplyr::pull(common_nm)
@@ -163,9 +227,10 @@ df <- tibble::tibble(sp = spp,
 
 ```{r}
 #| output: asis
+
 res <- purrr::pmap_chr(df, \(sp, nm, plots, tables_reanalysis, tables_hindcast) {
   knitr::knit_child(text = c(
-    "## `r nm`",
+    "### `r nm`",
     "```{r}",
     "#| echo: false",
     "plots",
@@ -174,5 +239,5 @@ res <- purrr::pmap_chr(df, \(sp, nm, plots, tables_reanalysis, tables_hindcast) 
     "```",
     ""), envir = environment(), quiet = TRUE)
 })
-cat(res, sep = '\n')
+cat(res, sep = "\n")
 ```
