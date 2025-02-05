@@ -25,7 +25,7 @@ if (targets_cas_local) {
   )
 }
 targets::tar_option_set(
-  packages = c("qs", "rsample", "sf", "spatialsample", "terra", "workflows"),
+  packages = c("qs", "quarto", "rsample", "sf", "spatialsample", "terra", "workflows"),
   format = "qs",
   repository = repository,
   memory = "transient",
@@ -436,6 +436,19 @@ target_model_performance_split_temporal_combined <- targets::tar_target(
   # deployment = "main"
 )
 
+# summarize models via single temporal split
+target_quarto_summary_split_temporal <- tarchetypes::tar_quarto(
+  quarto_summary_split_temporal,
+  path = "model_performance_hindcast_reanalysis.qmd",
+  execute_params = list(data_species_info = data_species_info,
+                        data_analysis_split_temporal = data_analysis_split_temporal,
+                        models_to_run = models_to_run,
+                        model_metrics = model_metrics,
+                        model_summary_split_temporal_combined = model_summary_split_temporal_combined,
+                        model_performance_split_temporal_combined = model_performance_split_temporal_combined),
+  quiet = FALSE
+)
+
 # fit models via temporal resampling
 target_model_fit_resamples_temporal <- targets::tar_target(
   model_fit_resamples_temporal,
@@ -503,7 +516,8 @@ list(
   target_model_summary_split_temporal,
   target_model_summary_split_temporal_combined,
   target_model_performance_split_temporal,
-  target_model_performance_split_temporal_combined
+  target_model_performance_split_temporal_combined,
+  target_quarto_summary_split_temporal
   # target_model_fit_resamples_temporal,
   # target_model_fit_resamples_temporal_combined
 )
