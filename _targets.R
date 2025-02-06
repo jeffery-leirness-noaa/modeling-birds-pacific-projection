@@ -25,7 +25,7 @@ if (targets_cas_local) {
   )
 }
 targets::tar_option_set(
-  packages = c("qs", "quarto", "rsample", "sf", "spatialsample", "terra", "workflows"),
+  packages = c("qs", "qs2", "rsample", "sf", "spatialsample", "terra", "workflows"),
   format = "qs",
   repository = repository,
   memory = "transient",
@@ -228,35 +228,11 @@ target_data_analysis_split <- targets::tar_target(
   command = rsample::initial_split(data_analysis)
 )
 
-# define single temporal split
-target_data_analysis_split_temporal <- targets::tar_target(
-  data_analysis_split_temporal,
-  command = data_analysis |>
-    dplyr::filter(date < "2011-01-01") |>
-    dplyr::arrange(date, survey_id) |>
-    rsample::initial_time_split(prop = 0.85)
-)
-
 # define spatial data resamples
 target_data_analysis_resamples_spatial <- targets::tar_target(
   data_analysis_resamples_spatial,
   command = data_analysis |>
-    spatialsample::spatial_block_cv(v = 5) |>
-    filter_rset_data(date < "2011-01-01", .split = "assessment")
-)
-target_data_analysis_resamples_spatial_all <- targets::tar_target(
-  data_analysis_resamples_spatial_all,
-  command = data_analysis |>
     spatialsample::spatial_block_cv(v = 5)
-)
-
-# define temporal data resamples
-target_data_analysis_resamples_temporal <- targets::tar_target(
-  data_analysis_resamples_temporal,
-  command = data_analysis |>
-    dplyr::filter(date < "2011-01-01") |>
-    dplyr::arrange(date, survey_id) |>
-    rolling_origin_prop_splits(prop = 0.15)
 )
 
 # define bootstrap resamples
@@ -295,7 +271,6 @@ target_model_workflows <- targets::tar_target(
 target_model_workflows_combined <- targets::tar_target(
   model_workflows_combined,
   command = model_workflows
-  # deployment = "main"
 )
 
 # define model metrics
@@ -319,21 +294,6 @@ target_model_metrics <- targets::tar_target(
                                   yardstick::smape)
 )
 
-# # compare hindcast vs. reanalysis
-#
-#
-# # testing
-# target_test <- targets::tar_target(
-#   test,
-#   command = {workflowsets::workflow_set()}
-# )
-# target_model_tests <- targets::tar_target(
-#   model_tests,
-#   command = {},
-#   pattern = workflowsets::workflow_map(),
-#   iteration = "list"
-# )
-
 # fit models
 target_model_fits <- targets::tar_target(
   model_fits,
@@ -344,7 +304,6 @@ target_model_fits <- targets::tar_target(
 target_model_fits_combined <- targets::tar_target(
   model_fits_combined,
   command = model_fits
-  # deployment = "main"
 )
 
 # fit models via spatial resampling
@@ -367,109 +326,6 @@ target_model_fit_resamples_spatial <- targets::tar_target(
 target_model_fit_resamples_spatial_combined <- targets::tar_target(
   model_fit_resamples_spatial_combined,
   command = model_fit_resamples_spatial
-  # deployment = "main"
-)
-target_model_fit_resamples_spatial_all <- targets::tar_target(
-  model_fit_resamples_spatial_all,
-  command = tune::fit_resamples(
-    model_workflows,
-    resamples = data_analysis_resamples_spatial_all,
-    metrics = model_metrics,
-    control = tune::control_resamples(
-      extract = function(x) list(workflows::extract_recipe(x),
-                                 workflows::extract_fit_parsnip(x)),
-      save_pred = TRUE,
-      save_workflow = TRUE
-    )
-  ),
-  pattern = map(model_workflows) |>
-    slice(index = c(125:128, 133:136, 293:296, 429:432)),
-  iteration = "list"
-)
-target_model_fit_resamples_spatial_all_combined <- targets::tar_target(
-  model_fit_resamples_spatial_all_combined,
-  command = model_fit_resamples_spatial_all
-  # deployment = "main"
-)
-
-# fit models via single temporal split
-target_model_fit_split_temporal <- targets::tar_target(
-  model_fit_split_temporal,
-  command = generics::fit(model_workflows,
-                          data = rsample::analysis(data_analysis_split_temporal)),
-  pattern = map(model_workflows),
-  iteration = "list"
-)
-target_model_fit_split_temporal_combined <- targets::tar_target(
-  model_fit_split_temporal_combined,
-  command = model_fit_split_temporal
-  # deployment = "main"
-)
-target_model_summary_split_temporal <- targets::tar_target(
-  model_summary_split_temporal,
-  command = broom::tidy(model_fit_split_temporal),
-  pattern = map(model_fit_split_temporal),
-  iteration = "list"
-)
-target_model_summary_split_temporal_combined <- targets::tar_target(
-  model_summary_split_temporal_combined,
-  command = model_summary_split_temporal
-  # deployment = "main"
-)
-target_model_performance_split_temporal <- targets::tar_target(
-  model_performance_split_temporal,
-  command = {
-    outcome_name <- workflows::extract_mold(model_fit_split_temporal)$outcomes |>
-      names()
-    new_data <- predict(model_fit_split_temporal,
-                        new_data = rsample::assessment(data_analysis_split_temporal)) |>
-      dplyr::bind_cols(rsample::assessment(data_analysis_split_temporal)) |>
-      dplyr::rename(tidyselect::all_of(c(.obs = outcome_name)))
-    model_metrics(new_data, truth = .obs, estimate = .pred)
-  },
-  pattern = map(model_fit_split_temporal),
-  iteration = "list"
-)
-target_model_performance_split_temporal_combined <- targets::tar_target(
-  model_performance_split_temporal_combined,
-  command = model_performance_split_temporal
-  # deployment = "main"
-)
-
-# summarize models via single temporal split
-target_quarto_summary_split_temporal <- tarchetypes::tar_quarto(
-  quarto_summary_split_temporal,
-  path = "model_performance_hindcast_reanalysis.qmd",
-  execute_params = list(data_species_info = data_species_info,
-                        data_analysis_split_temporal = data_analysis_split_temporal,
-                        models_to_run = models_to_run,
-                        model_metrics = model_metrics,
-                        model_summary_split_temporal_combined = model_summary_split_temporal_combined,
-                        model_performance_split_temporal_combined = model_performance_split_temporal_combined),
-  quiet = FALSE
-)
-
-# fit models via temporal resampling
-target_model_fit_resamples_temporal <- targets::tar_target(
-  model_fit_resamples_temporal,
-  command = tune::fit_resamples(
-    model_workflows,
-    resamples = data_analysis_resamples_temporal,
-    metrics = model_metrics,
-    control = tune::control_resamples(
-      extract = function(x) list(workflows::extract_recipe(x),
-                                 workflows::extract_fit_parsnip(x)),
-      save_pred = TRUE,
-      save_workflow = TRUE
-    )
-  ),
-  pattern = map(model_workflows),
-  iteration = "list"
-)
-target_model_fit_resamples_temporal_combined <- targets::tar_target(
-  model_fit_resamples_temporal_combined,
-  command = model_fit_resamples_temporal
-  # deployment = "main"
 )
 
 # create prediction rasters from fitted models
@@ -496,28 +352,14 @@ list(
   target_data_analysis_dev,
   target_data_analysis_test,
   target_data_analysis_split,
-  target_data_analysis_split_temporal,
   target_data_analysis_resamples_spatial,
-  target_data_analysis_resamples_spatial_all,
-  target_data_analysis_resamples_temporal,
   # target_data_analysis_resamples_bootstrap,
   target_species_to_model,
   target_models_to_run,
-  target_model_workflows,
+  # target_model_workflows,
   # target_model_workflows_combined,
-  target_model_metrics,
+  target_model_metrics
   # target_model_fits,
   # target_model_fit_resamples_spatial,
-  # target_model_fit_resamples_spatial_combined,
-  target_model_fit_resamples_spatial_all,
-  target_model_fit_resamples_spatial_all_combined,
-  target_model_fit_split_temporal,
-  # target_model_fit_split_temporal_combined,
-  target_model_summary_split_temporal,
-  target_model_summary_split_temporal_combined,
-  target_model_performance_split_temporal,
-  target_model_performance_split_temporal_combined
-  # target_quarto_summary_split_temporal
-  # target_model_fit_resamples_temporal,
-  # target_model_fit_resamples_temporal_combined
+  # target_model_fit_resamples_spatial_combined
 )
