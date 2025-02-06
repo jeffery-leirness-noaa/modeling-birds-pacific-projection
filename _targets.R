@@ -516,8 +516,8 @@ list(
   target_model_summary_split_temporal,
   target_model_summary_split_temporal_combined,
   target_model_performance_split_temporal,
-  target_model_performance_split_temporal_combined,
-  target_quarto_summary_split_temporal
+  target_model_performance_split_temporal_combined
+  # target_quarto_summary_split_temporal
   # target_model_fit_resamples_temporal,
   # target_model_fit_resamples_temporal_combined
 )
