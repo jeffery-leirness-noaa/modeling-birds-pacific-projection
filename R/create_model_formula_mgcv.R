@@ -1,7 +1,9 @@
 create_model_formula_mgcv <- function(lhs,
                                       type,
                                       bs = "tp",
-                                      spatial_random_effect = FALSE) {
+                                      spatial_random_effect = FALSE
+                                      # mrf = FALSE #in case we want to add option for another type of spatial random effect later
+                                      ) {
   if (type == "hindcast") {
     vars <- c("hindcast_bbv_200",
               "hindcast_curl",
@@ -18,7 +20,16 @@ create_model_formula_mgcv <- function(lhs,
               "reanalysis_ssh",
               "reanalysis_sst")
   }
-  form_spatial <- if (spatial_random_effect) "s(x, y)" else NULL
+  form_spatial <- if (spatial_random_effect) {
+    "s(x, y, bs = 'mrf', xt = list(penalty = mrf_penalties))"
+  } else NULL
+    # option to include multiple types of spatial random effects
+    # if (mrf) {
+    #   "s(x, y, bs = 'mrf', xt = list(penalty = mrf_penalties))"
+    # } else {
+    #   "s(x, y)"
+    # }
+    # } else NULL
   form_current <- stringr::str_glue("s({type}_su, {type}_sv)")
   form_wind <- stringr::str_glue("s({type}_sustr, {type}_svstr)")
   form_base <- stringr::str_glue(
