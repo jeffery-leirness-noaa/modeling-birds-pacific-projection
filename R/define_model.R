@@ -30,7 +30,13 @@ define_model_recipe <- function(model_formula, data, species_size_class) {
 
 }
 
-define_model_spec <- function(mgcv_select = FALSE, mgcv_gamma = NULL) {
+define_model_spec <- function(mgcv_select = FALSE,
+                              mgcv_gamma = NULL,
+                              nb_mat = NULL) {
+  # Create MRF penalties if neighborhood matrix is provided
+  mrf_penalties <- if(!is.null(nb.mat)) {
+    mgcv::mrf(nb_mat, posterior = TRUE)
+  } else NULL
   gam_model <- parsnip::gen_additive_mod(
     select_features = !!mgcv_select,
     adjust_deg_free = !!mgcv_gamma
@@ -38,18 +44,25 @@ define_model_spec <- function(mgcv_select = FALSE, mgcv_gamma = NULL) {
     parsnip::set_engine(
       "mgcv",
       family = mgcv::nb(),
-      knots = list(date_doy = c(1, 366))
+      knots = list(date_doy = c(1, 366)),
+      xt = list(mrf_penalties = mrf_penalties) # add mrf penalties for spatial random effect
     ) |>
     parsnip::set_mode("regression")
 }
 
-define_model_workflow <- function(model_formula, data, species_size_class,
-                                  mgcv_select = FALSE, mgcv_gamma = NULL) {
+define_model_workflow <- function(model_formula, data,
+                                  species_size_class,
+                                  mgcv_select = FALSE,
+                                  mgcv_gamma = NULL,
+                                  nb_mat = NULL #add option for spatial random effect neighborhood matrix to the worfflow call
+                                  ) {
   model_recipe <- define_model_recipe(model_formula = model_formula,
                                       data = data,
                                       species_size_class = species_size_class)
   model_spec <- define_model_spec(mgcv_select = mgcv_select,
-                                  mgcv_gamma = mgcv_gamma)
+                                  mgcv_gamma = mgcv_gamma,
+                                  nb_mat = nb_mat #add neighborhood matrix
+                                  )
   workflows::workflow() |>
     workflows::add_recipe(recipe = model_recipe) |>
     workflows::add_model(model_spec, formula = model_formula)
