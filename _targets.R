@@ -35,7 +35,6 @@ targets::tar_option_set(
   retrieval = "worker",
   cue = targets::tar_cue(repository = FALSE),
   controller = crew::crew_controller_local(
-    # workers = parallel::detectCores() - 1,
     workers = 12,
     seconds_idle = 30,
     garbage_collection = TRUE
@@ -187,7 +186,6 @@ target_data_climate_mask <- targets::tar_target(
     r_proj
   },
   format = define_tar_format_terra_rast("GTiff"),
-  deployment = "main",
   cue = targets::tar_cue("never")
 )
 
