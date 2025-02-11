@@ -114,20 +114,14 @@ target_data_bird_10km_wcnrt <- targets::tar_target(
 # daily climate projection data
 values_climate <- tibble::tibble(
   variable = c("bbv_200",
-               "chl_surf",
                "curl",
-               "eke",
                "ild_05",
-               "ssh",
                "sst",
                "su",
                "sustr",
                "sv",
-               "svstr",
-               "zoo_50m_int",
-               "zoo_100m_int",
-               "zoo_200m_int"),
-  file = stringr::str_c(variable, "_daily.nc")
+               "svstr"),
+  file = stringr::str_c(variable, "_daily_pcs.nc")
 ) |>
   head(n = 1)
 target_data_climate <- tarchetypes::tar_map(
@@ -135,16 +129,14 @@ target_data_climate <- tarchetypes::tar_map(
   names = "variable",
   targets::tar_target(
     data_gfdl_10km,
-    command = {
-      r <- create_targets_data_command(fs::path("environmental-data", "gfdl",
-                                                file),
-                                       local = targets_cas_local) |>
-        eval()
-      terra::set.values(r)
-      terra::project(r, y = grid_10km)
-    },
+    command = create_targets_data_command(
+      fs::path("environmental-data", "gfdl", file),
+      local = targets_cas_local,
+      container_name = "processing"
+    ) |>
+      eval() |>
+      terra::subset(subset = 1:2),
     format = define_tar_format_terra_rast("GTiff"),
-    deployment = "main",
     cue = targets::tar_cue("never")
   )
 )
@@ -152,8 +144,10 @@ target_data_climate <- tarchetypes::tar_map(
 # project bathymetry layer onto 10-km grid
 target_data_bathy_10km <- targets::tar_target(
   data_bathy_10km,
-  command = create_targets_data_command("environmental-data/gebco_2024_sub_ice_n90.0_s0.0_w-180.0_e-90.0.tiff",
-                                        local = targets_cas_local) |>
+  command = create_targets_data_command(
+    "environmental-data/gebco_2024_sub_ice_n90.0_s0.0_w-180.0_e-90.0.tiff",
+    local = targets_cas_local
+  ) |>
     eval() |>
     terra::project(y = grid_10km),
   format = define_tar_format_terra_rast("GTiff"),
@@ -172,9 +166,10 @@ target_data_slope_10km <- targets::tar_target(
 target_data_climate_mask <- targets::tar_target(
   data_climate_mask,
   command = {
-    r <- create_targets_data_command(fs::path("environmental-data", "gfdl",
-                                              "sst_daily.nc"),
-                                     local = targets_cas_local) |>
+    r <- create_targets_data_command(
+      fs::path("environmental-data", "gfdl", "sst_daily.nc"),
+      local = targets_cas_local
+    ) |>
       eval() |>
       terra::subset(subset = 1)
     mat <- terra::as.matrix(r, wide = TRUE)
@@ -232,6 +227,11 @@ target_data_analysis_resamples_spatial <- targets::tar_target(
   command = data_analysis |>
     spatialsample::spatial_block_cv(v = 5)
 )
+target_data_analysis_resamples_spatial2 <- targets::tar_target(
+  data_analysis_resamples_spatial2,
+  command = data_analysis |>
+    spatialsample::spatial_block_cv(v = 10)
+)
 
 # define bootstrap resamples
 target_data_analysis_resamples_bootstrap <- targets::tar_target(
@@ -244,7 +244,9 @@ target_species_to_model <- targets::tar_target(
   species_to_model,
   command = create_species_to_model_df(data_analysis,
                                        species_info_df = data_species_info,
-                                       threshold = 50)
+                                       threshold = 50) |>
+    dplyr::filter(stringr::str_starts(code, pattern = "grp_", negate = TRUE)) |>
+    dplyr::slice_sample(n = 5)
 )
 
 # create data frame of models to run
@@ -304,7 +306,7 @@ target_model_fits_combined <- targets::tar_target(
   command = model_fits
 )
 
-# fit models via spatial resampling
+# fit models via spatial resampling (option 1)
 target_model_fit_resamples_spatial <- targets::tar_target(
   model_fit_resamples_spatial,
   command = tune::fit_resamples(
@@ -326,6 +328,36 @@ target_model_fit_resamples_spatial_combined <- targets::tar_target(
   command = model_fit_resamples_spatial
 )
 
+# fit models via spatial resampling (option 2)
+target_model_fit_resamples_spatial2 <- targets::tar_target(
+  model_fit_resamples_spatial2,
+  command = tune::fit_resamples(
+    model_workflows,
+    resamples = data_analysis_resamples_spatial2,
+    metrics = model_metrics,
+    control = tune::control_resamples(
+      extract = function(x) list(workflows::extract_recipe(x),
+                                 workflows::extract_fit_parsnip(x)),
+      save_pred = TRUE,
+      save_workflow = TRUE
+    )
+  ),
+  pattern = map(model_workflows),
+  iteration = "list"
+)
+target_model_fit_resamples_spatial2_combined <- targets::tar_target(
+  model_fit_resamples_spatial2_combined,
+  command = model_fit_resamples_spatial2
+)
+
+# how best to store and load environmental data for predictions?
+# option 1: subset and convert raster data to reasonably sized data frames (possibly by year?)
+#   - this would make it easier to use with {targets} and may potentially be computationally faster than other methods
+#   - need to convert to data frame prior to prediction anyway, so this could save time/resources
+# option 2: subset raster data to reasonably sized rasters and store within {targets} as geotifs
+#   - how to subset (by year?) in order to avoid having "sidecar" files needed for geotif storage?
+#   - need to convert to data frame prior to prediction
+
 # create prediction rasters from fitted models
 # target_model_predictions <- targets::tar_target(
 #   model_predictions,
@@ -342,7 +374,6 @@ list(
   target_data_bird_10km_wc12,
   target_data_bird_10km_wcra31,
   target_data_bird_10km_wcnrt,
-  # target_data_climate,
   target_data_climate_mask,
   target_data_bathy_10km,
   target_data_slope_10km,
@@ -351,13 +382,16 @@ list(
   target_data_analysis_test,
   target_data_analysis_split,
   target_data_analysis_resamples_spatial,
+  target_data_analysis_resamples_spatial2,
   # target_data_analysis_resamples_bootstrap,
   target_species_to_model,
   target_models_to_run,
-  # target_model_workflows,
+  target_model_workflows,
   # target_model_workflows_combined,
-  target_model_metrics
+  target_model_metrics,
   # target_model_fits,
-  # target_model_fit_resamples_spatial,
-  # target_model_fit_resamples_spatial_combined
+  target_model_fit_resamples_spatial
+  # target_model_fit_resamples_spatial_combined,
+  # target_model_fit_resamples_spatial2
+  # target_model_fit_resamples_spatial2_combined
 )
