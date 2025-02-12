@@ -111,36 +111,6 @@ target_data_bird_10km_wcnrt <- targets::tar_target(
   cue = targets::tar_cue("never")
 )
 
-# daily climate projection data
-values_climate <- tibble::tibble(
-  variable = c("bbv_200",
-               "curl",
-               "ild_05",
-               "sst",
-               "su",
-               "sustr",
-               "sv",
-               "svstr"),
-  file = stringr::str_c(variable, "_daily_pcs.nc")
-) |>
-  head(n = 1)
-target_data_climate <- tarchetypes::tar_map(
-  values = values_climate,
-  names = "variable",
-  targets::tar_target(
-    data_gfdl_10km,
-    command = create_targets_data_command(
-      fs::path("environmental-data", "gfdl", file),
-      local = targets_cas_local,
-      container_name = "processing"
-    ) |>
-      eval() |>
-      terra::subset(subset = 1:2),
-    format = define_tar_format_terra_rast("GTiff"),
-    cue = targets::tar_cue("never")
-  )
-)
-
 # project bathymetry layer onto 10-km grid
 target_data_bathy_10km <- targets::tar_target(
   data_bathy_10km,
@@ -358,6 +328,36 @@ target_model_fit_resamples_spatial2_combined <- targets::tar_target(
 #   - how to subset (by year?) in order to avoid having "sidecar" files needed for geotif storage?
 #   - need to convert to data frame prior to prediction
 
+# daily climate projection data
+values_climate <- tibble::tibble(
+  variable = c("bbv_200",
+               "curl",
+               "ild_05",
+               "sst",
+               "su",
+               "sustr",
+               "sv",
+               "svstr"),
+  file = stringr::str_c(variable, "_daily_pcs.nc")
+) |>
+  head(n = 1)
+target_data_climate <- tarchetypes::tar_map(
+  values = values_climate,
+  names = "variable",
+  targets::tar_target(
+    data_gfdl_10km,
+    command = create_targets_data_command(
+      fs::path("environmental-data", "gfdl", file),
+      local = targets_cas_local,
+      container_name = "processing"
+    ) |>
+      eval() |>
+      terra::subset(subset = 1:2),
+    format = define_tar_format_terra_rast("GTiff"),
+    cue = targets::tar_cue("never")
+  )
+)
+
 # create prediction rasters from fitted models
 # target_model_predictions <- targets::tar_target(
 #   model_predictions,
@@ -390,8 +390,8 @@ list(
   # target_model_workflows_combined,
   target_model_metrics,
   # target_model_fits,
-  target_model_fit_resamples_spatial
+  target_model_fit_resamples_spatial,
   # target_model_fit_resamples_spatial_combined,
-  # target_model_fit_resamples_spatial2
+  target_model_fit_resamples_spatial2
   # target_model_fit_resamples_spatial2_combined
 )
