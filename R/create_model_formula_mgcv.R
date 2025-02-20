@@ -8,7 +8,6 @@ create_model_formula_mgcv <- function(lhs,
     vars <- c("hindcast_bbv_200",
               "hindcast_curl",
               "hindcast_ild_05",
-              "hindcast_ssh",
               "hindcast_sst",
               "hindcast_eke",
               "hindcast_chl_surf",
@@ -17,7 +16,6 @@ create_model_formula_mgcv <- function(lhs,
     vars <- c("reanalysis_bbv_200",
               "reanalysis_curl",
               "reanalysis_ild_05",
-              "reanalysis_ssh",
               "reanalysis_sst")
   }
   form_spatial <- if (spatial_random_effect) {

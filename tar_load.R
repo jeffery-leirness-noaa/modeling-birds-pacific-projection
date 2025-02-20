@@ -17,12 +17,13 @@ lobstr::obj_size(ck)
 # tar_load_azure_store("data_analysis_resamples_bootstrap")
 
 
+# plot spatial resample folds
+tar_load_azure_store("data_analysis_resamples_spatial")
 analysis <- data_analysis_resamples_spatial |>
   dplyr::pull(splits) |>
   purrr::map(.f = rsample::analysis) |>
   purrr::list_rbind(names_to = "split") |>
   dplyr::mutate(set = "analysis")
-
 temp <- data_analysis_resamples_spatial |>
   dplyr::pull(splits) |>
   purrr::map(.f = rsample::assessment) |>
@@ -31,10 +32,37 @@ temp <- data_analysis_resamples_spatial |>
   dplyr::bind_rows(analysis) |>
   tibble::as_tibble() |>
   sf::st_as_sf()
-
 ggplot2::ggplot(temp) +
-  ggplot2::geom_sf(mapping = ggplot2::aes(color = set)) +
-  ggplot2::facet_wrap(~ split)
+  ggplot2::geom_sf(mapping = ggplot2::aes(color = set), size = 0.25) +
+  ggplot2::facet_wrap(~ split, ncol = 5) +
+  ggplot2::scale_color_discrete(name = "Fold") +
+  ggplot2::labs(title = "Spatial block cross-validation folds") +
+  ggplot2::theme(legend.position = "bottom")
+
+tar_load_azure_store("data_analysis_resamples_spatial2")
+analysis <- data_analysis_resamples_spatial2 |>
+  dplyr::pull(splits) |>
+  purrr::map(.f = rsample::analysis) |>
+  purrr::list_rbind(names_to = "split") |>
+  dplyr::mutate(set = "analysis")
+temp <- data_analysis_resamples_spatial2 |>
+  dplyr::pull(splits) |>
+  purrr::map(.f = rsample::assessment) |>
+  purrr::list_rbind(names_to = "split") |>
+  dplyr::mutate(set = "assessment") |>
+  dplyr::bind_rows(analysis) |>
+  tibble::as_tibble() |>
+  sf::st_as_sf()
+ggplot2::ggplot(temp) +
+  ggplot2::geom_sf(mapping = ggplot2::aes(color = set), size = 0.25) +
+  ggplot2::facet_wrap(~ split, ncol = 5) +
+  ggplot2::scale_color_discrete(name = "Fold") +
+  ggplot2::labs(title = "Spatial block cross-validation folds") +
+  ggplot2::theme(legend.position = "bottom")
+
+tar_load_azure_store("model_fit_resamples_spatial")
+
+
 
 
 
@@ -176,6 +204,41 @@ purrr::map(model_fit_resamples_spatial_combined,
            \(x) tune::collect_metrics(x)) |>
   purrr::list_rbind()
 
+
+
+
+tar_load_azure_store("model_fit_resamples_spatial")
+metrics <- list()
+for (i in seq(along = model_fit_resamples_spatial)) {
+  metrics[[i]] <- tune::collect_metrics(model_fit_resamples_spatial[[i]]) |>
+    dplyr::mutate(code = tune::extract_preprocessor(model_fit_resamples_spatial[[i]])$var_info |>
+                    dplyr::filter(role == "outcome") |>
+                    dplyr::pull(variable),
+                  mgcv_gamma = tune::extract_spec_parsnip(model_fit_resamples_spatial[[i]])$args$adjust_deg_free |>
+                    rlang::as_label(),
+                  .before = tidyselect::everything())
+  # code_i <- model_fit_resamples_spatial[[i]] |>
+  #   tune::collect_extracts() |>
+  #   dplyr::pull(.extracts) |>
+  #   purrr::map(\(x) parsnip::extract_fit_engine(x[[2]])$formula |>
+  #                formula.tools::lhs() |>
+  #                as.character()) |>
+  #   purrr::list_c() |>
+  #   unique()
+  # mgcv_gamma_i <- model_fit_resamples_spatial[[i]] |>
+  #   tune::collect_extracts() |>
+  #   dplyr::pull(.extracts) |>
+  #   purrr::map(\(x) parsnip::extract_fit_engine(x[[2]])$call$gamma |>
+  #                rlang::as_label()) |>
+  #   purrr::list_c() |>
+  #   unique()
+}
+metrics <- purrr::list_rbind(metrics)
+ggplot2::ggplot(metrics |>
+                  dplyr::filter(.metric == "mae"),
+                mapping = ggplot2::aes(mgcv_gamma, mean, group = code)) +
+  ggplot2::geom_line() +
+  ggplot2::facet_wrap(~ code, scales = "free")
 
 
 
