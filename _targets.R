@@ -166,7 +166,8 @@ target_data_analysis <- targets::tar_target(
       add = list(depth = data_bathy_10km,
                  slope = data_slope_10km)
     )
-    temp <- terra::extract(data_climate_mask, data, ID = FALSE)
+    temp <- terra::extract(data_climate_mask, data, ID = FALSE) |>
+      dplyr::pull()
     data[!is.na(temp), ]
   }
 )
@@ -387,11 +388,11 @@ list(
   target_species_to_model,
   target_models_to_run,
   target_model_workflows,
-  # target_model_workflows_combined,
+  target_model_workflows_combined,
   target_model_metrics,
   # target_model_fits,
   target_model_fit_resamples_spatial,
-  # target_model_fit_resamples_spatial_combined,
-  target_model_fit_resamples_spatial2
-  # target_model_fit_resamples_spatial2_combined
+  target_model_fit_resamples_spatial_combined,
+  target_model_fit_resamples_spatial2,
+  target_model_fit_resamples_spatial2_combined
 )
