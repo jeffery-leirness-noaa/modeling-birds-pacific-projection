@@ -8,17 +8,26 @@ species_code_testing <- "rhau"
 # specify model formula for testing purposes
 # note: feel free to make this as simple/complex as you choose
 # this is where you will need to add the spatial term specification
+
+# if you choose 'mrf' spatial term
 model_formula_testing <- glue::glue("{species_code_testing} ~ offset(survey_area_km2) +
                                     platform + s(date_doy, bs = \"cc\") + s(date_decimal,
                                     bs = \"tp\") + s(depth, bs = \"tp\") +
-                                    s(x, y, bs = 'mrf', xt = list(penalty = mrf_penalties))"
+                                    s(x, y, bs = 'mrf', xt = list(penalty = nb_mat))"
                                     )
 
+# if you choose 'gp' spatial term
+model_formula_testing <- glue::glue("{species_code_testing} ~ offset(survey_area_km2) +
+                                    platform + s(date_doy, bs = \"cc\") + s(date_decimal,
+                                    bs = \"tp\") + s(depth, bs = \"tp\") +
+                                    s(x, y, bs = 'gp', m = c(2, 3/2))"
+)
 
-
-
-
-
+# no spatial term
+model_formula_testing <- glue::glue("{species_code_testing} ~ offset(survey_area_km2) +
+                                    platform + s(date_doy, bs = \"cc\") + s(date_decimal,
+                                    bs = \"tp\") + s(depth, bs = \"tp\")
+                                    ")
 
 # source relevant R functions
 targets::tar_source()
@@ -52,11 +61,14 @@ model_workflow <- define_model_workflow(
   species_size_class = models_to_run$size_class,
   mgcv_select = TRUE,
   mgcv_gamma = models_to_run$mgcv_gamma,
-  nb_mat = nb_mat
+  nb_mat = nb_mat,
+  spatial_method = 'gp'
 )
 
 # fit the model via the tidymodels framework
+system.time(
 model_fit <- generics::fit(model_workflow, data = data_analysis)
+)
 
 # get tidy data frame of model summary output
 broom::tidy(model_fit)
