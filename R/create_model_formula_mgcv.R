@@ -28,7 +28,7 @@ create_model_formula_mgcv <- function(lhs,
   #   }} else NULL
   form_spatial <- if (spatial_method != "none") {
     if (spatial_method == 'mrf') {
-      "s(x, y))"
+      "s(x, y)"
     } else if (spatial_method == 'gp') {
       "s(x, y, bs = 'gp', m = c(2, 3/2))"
     }} else NULL

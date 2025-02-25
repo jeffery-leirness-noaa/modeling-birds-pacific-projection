@@ -29,6 +29,19 @@ model_formula_testing <- glue::glue("{species_code_testing} ~ offset(survey_area
                                     bs = \"tp\") + s(depth, bs = \"tp\")
                                     ")
 
+# adding more parameters (reanalsyis)
+lhs <- species_code_testing
+type <- 'reanalysis'
+
+#mrf
+model_formula_testing <- create_model_formula_mgcv(lhs = lhs, type = type, spatial_method = 'mrf')
+
+#gp
+model_formula_testing <- create_model_formula_mgcv(lhs = lhs, type = type, spatial_method = 'gp')
+
+#none
+model_formula_testing <- create_model_formula_mgcv(lhs = lhs, type = type, spatial_method = 'none')
+
 # source relevant R functions
 targets::tar_source()
 
@@ -62,7 +75,7 @@ model_workflow <- define_model_workflow(
   mgcv_select = TRUE,
   mgcv_gamma = models_to_run$mgcv_gamma,
   nb_mat = nb_mat,
-  spatial_method = 'none'
+  spatial_method = 'mrf'
 )
 
 # fit the model via the tidymodels framework
