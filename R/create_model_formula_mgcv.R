@@ -4,6 +4,8 @@ create_model_formula_mgcv <- function(lhs,
                                       spatial_method = c("none", "mrf", "gp")
                                       ) {
 
+  spatial_method <- match.arg(spatial_method)
+
   if (type == "hindcast") {
     vars <- c("hindcast_bbv_200",
               "hindcast_curl",
@@ -18,12 +20,19 @@ create_model_formula_mgcv <- function(lhs,
               "reanalysis_ild_05",
               "reanalysis_sst")
   }
+  # form_spatial <- if (spatial_method != "none") {
+  #   if (spatial_method == 'mrf') {
+  #     "s(x, y, bs = 'mrf'))"
+  #   } else if (spatial_method == 'gp') {
+  #     "s(x, y, bs = 'gp', m = c(2, 3/2))"
+  #   }} else NULL
   form_spatial <- if (spatial_method != "none") {
     if (spatial_method == 'mrf') {
-      "s(x, y, bs = 'mrf', xt = list(penalty = nb_mat))"
+      "s(x, y))"
     } else if (spatial_method == 'gp') {
       "s(x, y, bs = 'gp', m = c(2, 3/2))"
     }} else NULL
+
   form_current <- stringr::str_glue("s({type}_su, {type}_sv)")
   form_wind <- stringr::str_glue("s({type}_sustr, {type}_svstr)")
   form_base <- stringr::str_glue(

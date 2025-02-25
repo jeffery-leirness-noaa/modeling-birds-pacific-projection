@@ -13,7 +13,7 @@ species_code_testing <- "rhau"
 model_formula_testing <- glue::glue("{species_code_testing} ~ offset(survey_area_km2) +
                                     platform + s(date_doy, bs = \"cc\") + s(date_decimal,
                                     bs = \"tp\") + s(depth, bs = \"tp\") +
-                                    s(x, y, bs = 'mrf', xt = list(penalty = nb_mat))"
+                                    s(x, y)"
                                     )
 
 # if you choose 'gp' spatial term
@@ -62,7 +62,7 @@ model_workflow <- define_model_workflow(
   mgcv_select = TRUE,
   mgcv_gamma = models_to_run$mgcv_gamma,
   nb_mat = nb_mat,
-  spatial_method = 'gp'
+  spatial_method = 'none'
 )
 
 # fit the model via the tidymodels framework

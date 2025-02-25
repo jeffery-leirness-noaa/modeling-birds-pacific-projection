@@ -42,11 +42,17 @@ define_model_spec <- function(mgcv_select = FALSE,
     knots = list(date_doy = c(1, 366))
   )
 
-  # # add spatial smoother specifications
+  # # Add MRF penalty if needed
   # if (spatial_method == "mrf" && !is.null(nb_mat)) {
-  #   engine_args$bs <- "mrf"
-  #   engine_args$xt <- list(penalty = nb_mat)
-  # } else if (spatial_method == "gp") {
+  #   engine_args$xt <- list(`s(x,y)` = list(penalty = nb_mat))
+  # }
+
+  # add spatial smoother specifications
+  if (spatial_method == "mrf" && !is.null(nb_mat)) {
+    engine_args$bs <- "mrf"
+    engine_args$xt <- list(penalty = nb_mat)
+  }
+  # else if (spatial_method == "gp") {
   #   engine_args$bs <- "gp"
   #   engine_args$m <- c(2, 3/2)  # Matérn smoothness parameter
   # }
