@@ -3,32 +3,34 @@
 renv::restore(prompt = FALSE)
 
 # specify example species for testing purposes
-species_code_testing <- "rhau"
-species_code_testing <- "rhau"
+# species_code_testing <- "rhau"
+species_code_testing <- "pfsh"
+species_code_testing <- "cagu"
+species_code_testing <- "reph"
 
 # specify model formula for testing purposes
 # note: feel free to make this as simple/complex as you choose
 # this is where you will need to add the spatial term specification
 
-# if you choose 'mrf' spatial term
-model_formula_testing <- glue::glue("{species_code_testing} ~ offset(survey_area_km2) +
-                                    platform + s(date_doy, bs = \"cc\") + s(date_decimal,
-                                    bs = \"tp\") + s(depth, bs = \"tp\") +
-                                    s(x, y)"
-                                    )
-
-# if you choose 'gp' spatial term
-model_formula_testing <- glue::glue("{species_code_testing} ~ offset(survey_area_km2) +
-                                    platform + s(date_doy, bs = \"cc\") + s(date_decimal,
-                                    bs = \"tp\") + s(depth, bs = \"tp\") +
-                                    s(x, y, bs = 'gp', m = c(2, 3/2))"
-)
-
-# no spatial term
-model_formula_testing <- glue::glue("{species_code_testing} ~ offset(survey_area_km2) +
-                                    platform + s(date_doy, bs = \"cc\") + s(date_decimal,
-                                    bs = \"tp\") + s(depth, bs = \"tp\")
-                                    ")
+# # if you choose 'mrf' spatial term
+# model_formula_testing <- glue::glue("{species_code_testing} ~ offset(survey_area_km2) +
+#                                     platform + s(date_doy, bs = \"cc\") + s(date_decimal,
+#                                     bs = \"tp\") + s(depth, bs = \"tp\") +
+#                                     s(x, y)"
+#                                     )
+#
+# # if you choose 'gp' spatial term
+# model_formula_testing <- glue::glue("{species_code_testing} ~ offset(survey_area_km2) +
+#                                     platform + s(date_doy, bs = \"cc\") + s(date_decimal,
+#                                     bs = \"tp\") + s(depth, bs = \"tp\") +
+#                                     s(x, y, bs = 'gp', m = c(2, 3/2))"
+# )
+#
+# # no spatial term
+# model_formula_testing <- glue::glue("{species_code_testing} ~ offset(survey_area_km2) +
+#                                     platform + s(date_doy, bs = \"cc\") + s(date_decimal,
+#                                     bs = \"tp\") + s(depth, bs = \"tp\")
+#                                     ")
 
 
 lhs <- species_code_testing
@@ -82,7 +84,7 @@ model_workflow <- define_model_workflow(
   mgcv_select = TRUE,
   mgcv_gamma = models_to_run$mgcv_gamma,
   nb_mat = nb_mat,
-  spatial_method = 'none'
+  spatial_method = 'gp'
 )
 
 # fit the model via the tidymodels framework
@@ -105,13 +107,29 @@ model_fit_mgcv <- workflows::extract_fit_engine(model_fit)
 # explore additional model checks
 summary(model_fit_mgcv)
 
-png(paste0('./output/testing_spatial_term/', species_code_testing,'_none_gam_diagnostics.png'),
-    width=1200, height=800, res=150)
+
+#gp
+png(paste0('./output/testing_spatial_term/', species_code_testing,'_gp_gam_diagnostics.png'),
+    width=1200, height=1000, res=150)
+par(mfrow=c(2,2))
 mgcv::gam.check(model_fit_mgcv)
 dev.off()
 
+png(paste0('./output/testing_spatial_term/', species_code_testing,'_gp_gam_results.png'),
+    width=1200, height=1000, res=150)
+mgcv::plot.gam(model_fit_mgcv, pages = 1, scale = 0)
+dev.off()
+
+
+#'none
 png(paste0('./output/testing_spatial_term/', species_code_testing,'_none_gam_diagnostics.png'),
-    width=1200, height=800, res=150)
+    width=1200, height=1000, res=150)
+par(mfrow=c(2,2))
+mgcv::gam.check(model_fit_mgcv)
+dev.off()
+
+png(paste0('./output/testing_spatial_term/', species_code_testing,'_none_gam_results.png'),
+    width=1200, height=1000, res=150)
 mgcv::plot.gam(model_fit_mgcv, pages = 1, scale = 0)
 dev.off()
 
