@@ -4,6 +4,7 @@ renv::restore(prompt = FALSE)
 
 # specify example species for testing purposes
 species_code_testing <- "rhau"
+species_code_testing <- "rhau"
 
 # specify model formula for testing purposes
 # note: feel free to make this as simple/complex as you choose
@@ -29,9 +30,16 @@ model_formula_testing <- glue::glue("{species_code_testing} ~ offset(survey_area
                                     bs = \"tp\") + s(depth, bs = \"tp\")
                                     ")
 
-# adding more parameters (reanalsyis)
+
 lhs <- species_code_testing
 type <- 'reanalysis'
+
+
+# source relevant R functions
+targets::tar_source()
+
+
+# adding more parameters (reanalsyis)
 
 #mrf
 model_formula_testing <- create_model_formula_mgcv(lhs = lhs, type = type, spatial_method = 'mrf')
@@ -42,8 +50,7 @@ model_formula_testing <- create_model_formula_mgcv(lhs = lhs, type = type, spati
 #none
 model_formula_testing <- create_model_formula_mgcv(lhs = lhs, type = type, spatial_method = 'none')
 
-# source relevant R functions
-targets::tar_source()
+
 
 # load relevant data from azure storage
 # note: the tar_load_azure_store() function will utilize your azure credentials and may require additional setup if you are getting errors
@@ -75,7 +82,7 @@ model_workflow <- define_model_workflow(
   mgcv_select = TRUE,
   mgcv_gamma = models_to_run$mgcv_gamma,
   nb_mat = nb_mat,
-  spatial_method = 'mrf'
+  spatial_method = 'none'
 )
 
 # fit the model via the tidymodels framework
@@ -97,5 +104,16 @@ model_fit_mgcv <- workflows::extract_fit_engine(model_fit)
 
 # explore additional model checks
 summary(model_fit_mgcv)
+
+png(paste0('./output/testing_spatial_term/', species_code_testing,'_none_gam_diagnostics.png'),
+    width=1200, height=800, res=150)
 mgcv::gam.check(model_fit_mgcv)
+dev.off()
+
+png(paste0('./output/testing_spatial_term/', species_code_testing,'_none_gam_diagnostics.png'),
+    width=1200, height=800, res=150)
 mgcv::plot.gam(model_fit_mgcv, pages = 1, scale = 0)
+dev.off()
+
+
+mgcv::plot.gam(model_fit_mgcv, select = 6, scale = 0)
