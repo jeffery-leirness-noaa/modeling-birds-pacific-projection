@@ -84,7 +84,7 @@ model_workflow <- define_model_workflow(
   mgcv_select = TRUE,
   mgcv_gamma = models_to_run$mgcv_gamma,
   nb_mat = nb_mat,
-  spatial_method = 'gp'
+  spatial_method = 'mrf'
 )
 
 # fit the model via the tidymodels framework
