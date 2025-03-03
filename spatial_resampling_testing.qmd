@@ -22,7 +22,7 @@ model_fit_resamples_spatial_10_combined <- qs2::qs_read("data/model_fit_resample
 
 metrics_5 <- list()
 for (i in seq(along = model_fit_resamples_spatial_5_combined)) {
-  metrics_5[[i]] <- tune::collect_metrics(model_fit_resamples_spatial_5_combined[[i]]) |>
+  metrics_5[[i]] <- tune::collect_metrics(model_fit_resamples_spatial_5_combined[[i]], summarize = FALSE) |>
     dplyr::mutate(code = tune::extract_preprocessor(model_fit_resamples_spatial_5_combined[[i]])$var_info |>
                     dplyr::filter(role == "outcome") |>
                     dplyr::pull(variable),
@@ -31,13 +31,14 @@ for (i in seq(along = model_fit_resamples_spatial_5_combined)) {
                   .before = tidyselect::everything())
 }
 metrics_5 <- purrr::list_rbind(metrics_5) |> 
-  dplyr::mutate(type = "5-fold")
+  dplyr::mutate(id = stringr::str_replace_all(id, pattern = "Fold", "Fold0"),
+                type = "5-fold")
 rm(model_fit_resamples_spatial_5_combined)
 gc()
 
 metrics_10 <- list()
 for (i in seq(along = model_fit_resamples_spatial_10_combined)) {
-  metrics_10[[i]] <- tune::collect_metrics(model_fit_resamples_spatial_10_combined[[i]]) |>
+  metrics_10[[i]] <- tune::collect_metrics(model_fit_resamples_spatial_10_combined[[i]], summarize = FALSE) |>
     dplyr::mutate(code = tune::extract_preprocessor(model_fit_resamples_spatial_10_combined[[i]])$var_info |>
                     dplyr::filter(role == "outcome") |>
                     dplyr::pull(variable),
@@ -45,13 +46,53 @@ for (i in seq(along = model_fit_resamples_spatial_10_combined)) {
                     rlang::as_label(),
                   .before = tidyselect::everything())
 }
-metrics_10 <- purrr::list_rbind(metrics_10) |> 
+metrics_10 <- purrr::list_rbind(metrics_10) |>
   dplyr::mutate(type = "10-fold")
 rm(model_fit_resamples_spatial_10_combined)
 gc()
 
-metrics <- dplyr::bind_rows(metrics_5, metrics_10) |> 
-  dplyr::filter(!(.metric %in% c("mape", "mpe", "rpiq")))
+metrics <- dplyr::bind_rows(metrics_5, metrics_10) |>
+  dplyr::filter(.metric %in% c("ccc", "iic", "rsq", "huber_loss", "mae", 
+                               "poisson_log_loss", "rmse", "smape")) |> 
+  dplyr::mutate(.metric_type = dplyr::case_match(
+    .metric,
+    c("ccc", "iic") ~ "consistency/correlation and accuracy",
+    "rsq" ~ "consistency/correlation",
+    c("huber_loss", "mae", "poisson_log_loss", "rmse", "smape") ~ "accuracy"
+  ))
+
+# which gamma is chosen based on mean metric value for 5-fold? 10-fold?
+temp <- metrics |>
+  dplyr::group_by(code, type, .metric_type, .metric, mgcv_gamma) |>
+  dplyr::summarise(mean = mean(.estimate, na.rm = TRUE)) |>
+  dplyr::mutate(best_gamma = dplyr::case_match(
+    .metric,
+    c("ccc", "iic", "rsq") ~ mgcv_gamma[which.max(mean)],
+    c("huber_loss", "mae", "poisson_log_loss", "rmse", "smape") ~ mgcv_gamma[which.min(mean)]
+  )) |>
+  dplyr::group_by(code, type, .metric_type, .metric) |>
+  dplyr::summarise(best_gamma = unique(best_gamma))
+dplyr::filter(temp, code == "brac") |>
+  janitor::tabyl(.metric_type, best_gamma, type)
+
+# how often does gamma chosen by mae agree with gamma chosen by rmse?
+dplyr::filter(temp, code == "brac") |>
+  janitor::tabyl(.metric, best_gamma, type)
+
+# which gamma is chosen based on mean choice for 5-fold? 10-fold?
+temp <- metrics |>
+  tidyr::drop_na(.estimate) |>
+  dplyr::group_by(code, type, .metric_type, .metric, id) |>
+  dplyr::mutate(best_gamma = dplyr::case_match(
+    .metric,
+    c("ccc", "iic", "rsq") ~ mgcv_gamma[which.max(.estimate)],
+    c("huber_loss", "mae", "poisson_log_loss", "rmse", "smape") ~ mgcv_gamma[which.min(.estimate)]
+  )) |>
+  dplyr::summarise(best_gamma = unique(best_gamma))
+dplyr::filter(temp, code == "brac") |>
+  janitor::tabyl(.metric_type, best_gamma, type)
+
+dplyr::filter(metrics, code == "brac", type == "5-fold", .metric == "mae")
 ```
 
 ## Overall summary
@@ -103,9 +144,9 @@ ggplot2::ggplot(temp) +
 ### Comparing model performance between cross-validation sets
 
 ```{r}
-ggplot2::ggplot(metrics |>
-                  dplyr::filter(.metric == "mae"),
-                mapping = ggplot2::aes(mgcv_gamma, mean, group = type, color = type)) +
+metrics |>
+  dplyr::filter(.metric == "mae") |> 
+  ggplot2::ggplot(mapping = ggplot2::aes(mgcv_gamma, .estimate, group = id, color = type)) +
   ggplot2::geom_line() +
   ggplot2::facet_wrap(~ code, scales = "free") +
   ggplot2::labs(color = "cross-validation",
@@ -114,9 +155,24 @@ ggplot2::ggplot(metrics |>
                 title = "Mean absolute error") +
   ggplot2::theme(legend.position = "bottom")
 
-ggplot2::ggplot(metrics |>
-                  dplyr::filter(.metric == "rmse"),
-                mapping = ggplot2::aes(mgcv_gamma, mean, group = type, color = type)) +
+metrics |>
+  dplyr::filter(.metric == "mae") |> 
+  dplyr::group_by(code, mgcv_gamma, type) |> 
+  dplyr::summarise(mean = mean(.estimate, na.rm = TRUE)) |> 
+  ggplot2::ggplot(mapping = ggplot2::aes(mgcv_gamma, mean, group = type, color = type)) +
+  ggplot2::geom_line() +
+  ggplot2::facet_wrap(~ code, scales = "free") +
+  ggplot2::labs(color = "cross-validation",
+                x = "{mgcv} gamma argument",
+                y = "Mean estimate",
+                title = "Mean absolute error") +
+  ggplot2::theme(legend.position = "bottom")
+
+metrics |>
+  dplyr::filter(.metric == "rmse") |> 
+  dplyr::group_by(code, mgcv_gamma, type) |> 
+  dplyr::summarise(mean = mean(.estimate, na.rm = TRUE)) |> 
+  ggplot2::ggplot(mapping = ggplot2::aes(mgcv_gamma, mean, group = type, color = type)) +
   ggplot2::geom_line() +
   ggplot2::facet_wrap(~ code, scales = "free") +
   ggplot2::labs(color = "cross-validation",
@@ -143,8 +199,11 @@ spp_nm <- dplyr::filter(data_species_info, tolower(code) %in% spp) |>
 make_plot <- function(spec) {
   sp_nm <- dplyr::filter(data_species_info, tolower(code) == spec) |>
     dplyr::pull(common_nm)
+  
   metrics |>
     dplyr::filter(code == spec) |>
+    dplyr::group_by(mgcv_gamma, .metric, type) |>
+    dplyr::summarise(mean = mean(.estimate, na.rm = TRUE)) |>
     ggplot2::ggplot(mapping = ggplot2::aes(mgcv_gamma, mean,
                                            group = type,
                                            color = type)) +
@@ -175,3 +234,4 @@ res <- purrr::pmap_chr(df, \(sp, nm, plots) {
 })
 cat(res, sep = "\n")
 ```
+
