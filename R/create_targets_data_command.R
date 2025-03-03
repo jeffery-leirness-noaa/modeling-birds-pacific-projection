@@ -2,16 +2,21 @@ create_targets_data_command <- function(file_name, local = TRUE,
                                         container_name = "raw") {
   if (local) {
     ext <- fs::path_ext(file_name)
+    if (container_name == "raw") {
+      dir_use <- opt$dir_in
+    } else if (container_name == "processing") {
+      dir_use <- opt$dir_processing
+    }
     if (ext == "csv") {
-      fs::path(opt$dir_in, !!file_name) |>
+      fs::path(!!dir_use, !!file_name) |>
         readr::read_csv() |>
         rlang::expr()
     } else if (ext %in% c("tif", "tiff", "nc")) {
-      fs::path(opt$dir_in, !!file_name) |>
+      fs::path(!!dir_use, !!file_name) |>
         terra::rast() |>
         rlang::expr()
     } else if (ext == "gpkg") {
-      fs::path(opt$dir_in, !!file_name) |>
+      fs::path(!!dir_use, !!file_name) |>
         sf::read_sf() |>
         rlang::expr()
     }
