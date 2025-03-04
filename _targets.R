@@ -156,14 +156,14 @@ target_data_slope_10km <- targets::tar_target(
 
 # create prediction datasets (by year)
 values_data_prediction <- tidyr::expand_grid(esm = c("gfdl", "hadl", "ipsl"),
-                                             year = 1980:2100) |>
-  head(n = 1)
+                                             year = 1980:2100)
 target_data_prediction <- tarchetypes::tar_map(
   values = values_data_prediction,
   targets::tar_target(
     data_prediction,
     command = create_prediction_dataset(fs::path("environmental-data", esm),
-                                        year)
+                                        year),
+    cue = targets::tar_cue("never")
   )
 )
 
@@ -185,34 +185,14 @@ target_data_analysis <- targets::tar_target(
   }
 )
 
-# subset of analysis dataset to use for development purposes
-target_data_analysis_dev <- targets::tar_target(
-  data_analysis_dev,
-  command = rsample::initial_split(data_analysis, prop = 0.1, strata = platform) |>
-    rsample::training()
-)
-
-# subset of analysis dataset to use for testing purposes
-target_data_analysis_test <- targets::tar_target(
-  data_analysis_test,
-  command = rsample::initial_split(data_analysis, prop = 0.4, strata = platform) |>
-    rsample::training()
-)
-
-# define single data split
-target_data_analysis_split <- targets::tar_target(
-  data_analysis_split,
-  command = rsample::initial_split(data_analysis)
-)
-
 # define spatial data resamples
-target_data_analysis_resamples_spatial <- targets::tar_target(
-  data_analysis_resamples_spatial,
+target_data_analysis_resamples_spatial_5 <- targets::tar_target(
+  data_analysis_resamples_spatial_5,
   command = data_analysis |>
     spatialsample::spatial_block_cv(v = 5)
 )
-target_data_analysis_resamples_spatial2 <- targets::tar_target(
-  data_analysis_resamples_spatial2,
+target_data_analysis_resamples_spatial_10 <- targets::tar_target(
+  data_analysis_resamples_spatial_10,
   command = data_analysis |>
     spatialsample::spatial_block_cv(v = 10)
 )
@@ -229,15 +209,14 @@ target_species_to_model <- targets::tar_target(
   command = create_species_to_model_df(data_analysis,
                                        species_info_df = data_species_info,
                                        threshold = 50) |>
-    dplyr::filter(stringr::str_starts(code, pattern = "grp_", negate = TRUE)) |>
-    dplyr::slice_sample(n = 5)
+    dplyr::filter(stringr::str_starts(code, pattern = "grp_", negate = TRUE))
 )
 
 # create data frame of models to run
 target_models_to_run <- targets::tar_target(
   models_to_run,
   command = create_models_to_run_df(species_to_model) |>
-    dplyr::filter(!spatial_random_effect,
+    dplyr::filter(!spatial_effect,
                   stringr::str_starts(code, pattern = "grp_", negate = TRUE))
 )
 
@@ -290,12 +269,12 @@ target_model_fits_combined <- targets::tar_target(
   command = model_fits
 )
 
-# fit models via spatial resampling (option 1)
-target_model_fit_resamples_spatial <- targets::tar_target(
-  model_fit_resamples_spatial,
+# fit models via 5-fold spatial resampling
+target_model_fit_resamples_spatial_5 <- targets::tar_target(
+  model_fit_resamples_spatial_5,
   command = tune::fit_resamples(
     model_workflows,
-    resamples = data_analysis_resamples_spatial,
+    resamples = data_analysis_resamples_spatial_5,
     metrics = model_metrics,
     control = tune::control_resamples(
       extract = function(x) list(workflows::extract_recipe(x),
@@ -307,17 +286,17 @@ target_model_fit_resamples_spatial <- targets::tar_target(
   pattern = map(model_workflows),
   iteration = "list"
 )
-target_model_fit_resamples_spatial_combined <- targets::tar_target(
-  model_fit_resamples_spatial_combined,
-  command = model_fit_resamples_spatial
+target_model_fit_resamples_spatial_5_combined <- targets::tar_target(
+  model_fit_resamples_spatial_5_combined,
+  command = model_fit_resamples_spatial_5
 )
 
-# fit models via spatial resampling (option 2)
-target_model_fit_resamples_spatial2 <- targets::tar_target(
-  model_fit_resamples_spatial2,
+# fit models via 10-fold spatial resampling
+target_model_fit_resamples_spatial_10 <- targets::tar_target(
+  model_fit_resamples_spatial_10,
   command = tune::fit_resamples(
     model_workflows,
-    resamples = data_analysis_resamples_spatial2,
+    resamples = data_analysis_resamples_spatial_10,
     metrics = model_metrics,
     control = tune::control_resamples(
       extract = function(x) list(workflows::extract_recipe(x),
@@ -329,20 +308,10 @@ target_model_fit_resamples_spatial2 <- targets::tar_target(
   pattern = map(model_workflows),
   iteration = "list"
 )
-target_model_fit_resamples_spatial2_combined <- targets::tar_target(
-  model_fit_resamples_spatial2_combined,
-  command = model_fit_resamples_spatial2
+target_model_fit_resamples_spatial_10_combined <- targets::tar_target(
+  model_fit_resamples_spatial_10_combined,
+  command = model_fit_resamples_spatial_10
 )
-
-# how best to store and load environmental data for predictions?
-# option 1: subset and convert raster data to reasonably sized data frames (possibly by year?)
-#   - this would make it easier to use with {targets} and may potentially be computationally faster than other methods
-#   - need to convert to data frame prior to prediction anyway, so this could save time/resources
-# option 2: subset raster data to reasonably sized rasters and store within {targets} as geotifs
-#   - how to subset (by year?) in order to avoid having "sidecar" files needed for geotif storage?
-#   - need to convert to data frame prior to prediction
-
-
 
 # create prediction rasters from fitted models
 # target_model_predictions <- targets::tar_target(
@@ -365,20 +334,17 @@ list(
   target_data_slope_10km,
   target_data_prediction,
   target_data_analysis,
-  target_data_analysis_dev,
-  target_data_analysis_test,
-  target_data_analysis_split,
-  # target_data_analysis_resamples_spatial,
-  # target_data_analysis_resamples_spatial2,
+  # target_data_analysis_resamples_spatial_5,
+  # target_data_analysis_resamples_spatial_10,
   # target_data_analysis_resamples_bootstrap,
-  target_species_to_model,
-  target_models_to_run,
-  target_model_workflows,
-  target_model_workflows_combined,
-  target_model_metrics,
-  target_model_fits
-  # target_model_fit_resamples_spatial,
-  # target_model_fit_resamples_spatial_combined,
-  # target_model_fit_resamples_spatial2,
-  # target_model_fit_resamples_spatial2_combined
+  target_species_to_model
+  # target_models_to_run,
+  # target_model_workflows,
+  # target_model_workflows_combined,
+  # target_model_metrics
+  # target_model_fits
+  # target_model_fit_resamples_spatial_5,
+  # target_model_fit_resamples_spatial_5_combined,
+  # target_model_fit_resamples_spatial_10,
+  # target_model_fit_resamples_spatial_10_combined
 )

@@ -23,7 +23,7 @@ create_targets_data_command <- function(file_name, local = TRUE,
   } else {
     token <- azure_auth_token()
     AzureStor::storage_endpoint(Sys.getenv("TARGETS_ENDPOINT"), token = !!token) |>
-      AzureStor::storage_container(name = container_name) |>
+      AzureStor::storage_container(name = !!container_name) |>
       storage_read(!!file_name) |>
       rlang::expr()
   }
