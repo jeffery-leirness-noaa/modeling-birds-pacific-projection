@@ -334,15 +334,15 @@ list(
   target_data_slope_10km,
   target_data_prediction,
   target_data_analysis,
-  # target_data_analysis_resamples_spatial_5,
-  # target_data_analysis_resamples_spatial_10,
-  # target_data_analysis_resamples_bootstrap,
-  target_species_to_model
-  # target_models_to_run,
-  # target_model_workflows,
-  # target_model_workflows_combined,
-  # target_model_metrics
-  # target_model_fits
+  target_data_analysis_resamples_spatial_5,
+  target_data_analysis_resamples_spatial_10,
+  target_data_analysis_resamples_bootstrap,
+  target_species_to_model,
+  target_models_to_run,
+  target_model_workflows,
+  target_model_workflows_combined,
+  target_model_metrics,
+  target_model_fits
   # target_model_fit_resamples_spatial_5,
   # target_model_fit_resamples_spatial_5_combined,
   # target_model_fit_resamples_spatial_10,
