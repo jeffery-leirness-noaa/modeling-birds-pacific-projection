@@ -51,7 +51,8 @@ prepare_data_analysis <- function(data_bird, data_covariates, add) {
   r <- terra::rast(add)
   names(r) <- names(add)
   data <- data |>
-    dplyr::mutate(survey_id = forcats::as_factor(survey_id)) |>
+    dplyr::mutate(survey_id = stringr::str_replace(survey_id, pattern = "MAMU_zone2", replacement = "NWFP_MAMU_WA") |>
+                    forcats::as_factor()) |>
     sf::st_as_sf(coords = c("lon", "lat"), crs = "WGS84") |>
     sf::st_transform(crs = terra::crs(r))
   temp <- terra::extract(r, data, xy = TRUE, ID = FALSE)

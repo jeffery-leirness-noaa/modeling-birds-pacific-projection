@@ -9,7 +9,9 @@ job <- submit_job_rfile(
     ),
     dir_targets_store = paste0(
       Sys.getenv("AML_DATASTORE_WORKINGDIR"),
-      targets::tar_path_store())
+      targets::tar_path_store()
+    ),
+    dir_processing = Sys.getenv("AML_DATASTORE_PROCESSING")
   ),
   environment = Sys.getenv("AML_ENVIRONMENT"),
   compute = "nccos-vm-cluster-d14v2",

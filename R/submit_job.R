@@ -1,3 +1,10 @@
+reticulate::py_require(
+  c("azure.ai.ml", "azure.identity"),
+  python_version = "3.13.2",
+  exclude_newer = "2025-03-15",
+  action = "set"
+)
+
 submit_job <- function(code = ".", command, inputs = NULL, outputs = NULL,
                        environment = NULL, compute, experiment_name,
                        display_name, description, subscription_id = NULL,

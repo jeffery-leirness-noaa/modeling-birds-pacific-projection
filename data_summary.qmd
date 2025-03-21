@@ -1,0 +1,160 @@
+---
+title: "Data summary"
+author: "Jeffery Leirness"
+date: last-modified
+format: html
+toc: true
+number-sections: true
+execute:
+  echo: false
+---
+
+```{r}
+#| include: false
+
+library(sf)
+data_bird_10km <- qs2::qs_read("data/data_bird_10km.qs")
+data_bird_10km_wc12 <- qs2::qs_read("data/data_bird_10km_wc12.qs")
+data_bird_10km_wcra31 <- qs2::qs_read("data/data_bird_10km_wcra31.qs")
+data_bird_10km_wcnrt <- qs2::qs_read("data/data_bird_10km_wcnrt.qs")
+data_bathy_10km <- terra::rast("data/data_bathy_10km.tiff")
+data_slope_10km <- terra::rast("data/data_slope_10km.tiff")
+data_climate_mask <- terra::rast("data/data_climate_mask.tiff")
+data_analysis <- qs2::qs_read("data/data_analysis.qs")
+data_species_info <- qs2::qs_read("data/data_species_info.qs")
+models_to_run <- qs2::qs_read("data/models_to_run.qs")
+
+targets::tar_source()
+
+data <- prepare_data_analysis(
+  data_bird_10km,
+  data_covariates = list(data_bird_10km_wc12,
+                         dplyr::bind_rows(data_bird_10km_wcra31,
+                                          data_bird_10km_wcnrt)),
+  add = list(depth = data_bathy_10km,
+             slope = data_slope_10km)
+)
+temp <- terra::extract(data_climate_mask, data, ID = FALSE) |>
+  dplyr::mutate(in_study = !is.na(sst_1)) |>
+  dplyr::select(in_study)
+data <- dplyr::bind_cols(data, temp) |>
+  dplyr::mutate(year = lubridate::year(date),
+                month = lubridate::month(date, label = TRUE),
+                survey_id = as.character(survey_id))
+```
+
+## Overall summary
+
+```{r}
+ggplot2::ggplot(data) +
+  ggplot2::geom_sf(mapping = ggplot2::aes(color = in_study), size = 0.25) +
+  ggplot2::labs(title = "Survey data") +
+  ggplot2::theme(legend.position = "bottom")
+
+ggplot2::ggplot(data) +
+  ggplot2::geom_sf(mapping = ggplot2::aes(color = in_study), size = 0.25) +
+  ggplot2::facet_wrap(~ year, ncol = 10) +
+  ggplot2::labs(title = "Survey data by year") +
+  ggplot2::theme(legend.position = "bottom")
+
+ggplot2::ggplot(data) +
+  ggplot2::geom_sf(mapping = ggplot2::aes(color = in_study), size = 0.25) +
+  ggplot2::facet_wrap(~ month, ncol = 6) +
+  ggplot2::labs(title = "Survey data by month") +
+  ggplot2::theme(legend.position = "bottom")
+
+ggplot2::ggplot(data) +
+  ggplot2::geom_sf(mapping = ggplot2::aes(color = in_study), size = 0.25) +
+  ggplot2::facet_wrap(~ survey_id, ncol = 9) +
+  ggplot2::labs(title = "Survey data by survey ID") +
+  ggplot2::theme(legend.position = "bottom")
+```
+
+## Survey-specific summaries
+
+```{r}
+#| include: false
+
+surv <- data |> 
+  dplyr::pull(survey_id) |> 
+  unique() |> 
+  sort()
+
+# plots
+make_plot <- function(spec) {
+  data |> 
+    dplyr::filter(survey_id == spec) |>
+    ggplot2::ggplot() +
+    ggplot2::geom_sf(mapping = ggplot2::aes(color = in_study), size = 0.25) +
+    ggplot2::facet_wrap(~ year) +
+    ggplot2::labs(title = spec) +
+    ggplot2::theme(legend.position = "bottom")
+}
+list_plot <- purrr::map(surv, make_plot)
+
+df <- tibble::tibble(survey = surv, plots = list_plot)
+```
+
+```{r}
+#| output: asis
+
+res <- purrr::pmap_chr(df, \(survey, plots) {
+  knitr::knit_child(text = c(
+    "### `r survey`",
+    "```{r}",
+    "#| echo: false",
+    "plots",
+    "```",
+    ""), envir = environment(), quiet = TRUE)
+})
+cat(res, sep = "\n")
+```
+
+## Species-specific summaries
+
+```{r}
+#| include: false
+
+# spp <- models_to_run |>
+#   dplyr::arrange(sortorder, mgcv_gamma) |>
+#   dplyr::pull(code) |>
+#   unique()
+# spp_nm <- dplyr::filter(data_species_info, tolower(code) %in% spp) |>
+#   dplyr::pull(common_nm)
+# 
+# # plots
+# make_plot <- function(spec) {
+#   sp_nm <- dplyr::filter(data_species_info, tolower(code) == spec) |>
+#     dplyr::pull(common_nm)
+#   metrics |>
+#     dplyr::filter(code == spec) |>
+#     ggplot2::ggplot(mapping = ggplot2::aes(mgcv_gamma, mean,
+#                                            group = type,
+#                                            color = type)) +
+#     ggplot2::geom_line() +
+#     ggplot2::facet_wrap(ggplot2::vars(.metric), scales = "free_y") +
+#     ggplot2::labs(color = NULL,
+#                   x = "{mgcv} gamma argument",
+#                   y = "Estimate",
+#                   title = sp_nm) +
+#     ggplot2::theme(legend.position = "bottom")
+# }
+# list_plot <- purrr::map(spp, make_plot)
+# 
+# df <- tibble::tibble(sp = spp, nm = spp_nm, plots = list_plot)
+```
+
+```{r}
+#| output: asis
+
+# res <- purrr::pmap_chr(df, \(sp, nm, plots) {
+#   knitr::knit_child(text = c(
+#     "### `r nm`",
+#     "```{r}",
+#     "#| echo: false",
+#     "plots",
+#     "```",
+#     ""), envir = environment(), quiet = TRUE)
+# })
+# cat(res, sep = "\n")
+```

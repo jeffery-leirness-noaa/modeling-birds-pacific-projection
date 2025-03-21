@@ -19,7 +19,12 @@ option_list <- list(
                         type = "character",
                         dest = "dir_targets_store",
                         default = targets::tar_path_store(),
-                        help = "Directory to use as the {targets} data store [default %default]")
+                        help = "Directory to use as the {targets} data store [default %default]"),
+  optparse::make_option("--dir_processing",
+                        type = "character",
+                        dest = "dir_processing",
+                        default = "processing",
+                        help = "Processing directory to use [default %default]")
 )
 
 # get command line options

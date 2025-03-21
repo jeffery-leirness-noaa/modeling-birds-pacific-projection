@@ -1,0 +1,237 @@
+---
+title: "Spatial resampling (cross-validation) testing"
+author: "Jeffery Leirness"
+date: last-modified
+format: pdf
+toc: true
+number-sections: true
+execute:
+  echo: false
+---
+
+```{r}
+#| include: false
+
+library(sf)
+data_species_info <- qs2::qs_read("data/data_species_info.qs")
+data_analysis_resamples_spatial_5 <- qs2::qs_read("data/data_analysis_resamples_spatial_5.qs")
+data_analysis_resamples_spatial_10 <- qs2::qs_read("data/data_analysis_resamples_spatial_10.qs")
+models_to_run <- qs2::qs_read("data/models_to_run.qs")
+model_fit_resamples_spatial_5_combined <- qs2::qs_read("data/model_fit_resamples_spatial_5_combined.qs")
+model_fit_resamples_spatial_10_combined <- qs2::qs_read("data/model_fit_resamples_spatial_10_combined.qs")
+
+metrics_5 <- list()
+for (i in seq(along = model_fit_resamples_spatial_5_combined)) {
+  metrics_5[[i]] <- tune::collect_metrics(model_fit_resamples_spatial_5_combined[[i]], summarize = FALSE) |>
+    dplyr::mutate(code = tune::extract_preprocessor(model_fit_resamples_spatial_5_combined[[i]])$var_info |>
+                    dplyr::filter(role == "outcome") |>
+                    dplyr::pull(variable),
+                  mgcv_gamma = tune::extract_spec_parsnip(model_fit_resamples_spatial_5_combined[[i]])$args$adjust_deg_free |>
+                    rlang::as_label(),
+                  .before = tidyselect::everything())
+}
+metrics_5 <- purrr::list_rbind(metrics_5) |> 
+  dplyr::mutate(id = stringr::str_replace_all(id, pattern = "Fold", "Fold0"),
+                type = "5-fold")
+rm(model_fit_resamples_spatial_5_combined)
+gc()
+
+metrics_10 <- list()
+for (i in seq(along = model_fit_resamples_spatial_10_combined)) {
+  metrics_10[[i]] <- tune::collect_metrics(model_fit_resamples_spatial_10_combined[[i]], summarize = FALSE) |>
+    dplyr::mutate(code = tune::extract_preprocessor(model_fit_resamples_spatial_10_combined[[i]])$var_info |>
+                    dplyr::filter(role == "outcome") |>
+                    dplyr::pull(variable),
+                  mgcv_gamma = tune::extract_spec_parsnip(model_fit_resamples_spatial_10_combined[[i]])$args$adjust_deg_free |>
+                    rlang::as_label(),
+                  .before = tidyselect::everything())
+}
+metrics_10 <- purrr::list_rbind(metrics_10) |>
+  dplyr::mutate(type = "10-fold")
+rm(model_fit_resamples_spatial_10_combined)
+gc()
+
+metrics <- dplyr::bind_rows(metrics_5, metrics_10) |>
+  dplyr::filter(.metric %in% c("ccc", "iic", "rsq", "huber_loss", "mae", 
+                               "poisson_log_loss", "rmse", "smape")) |> 
+  dplyr::mutate(.metric_type = dplyr::case_match(
+    .metric,
+    c("ccc", "iic") ~ "consistency/correlation and accuracy",
+    "rsq" ~ "consistency/correlation",
+    c("huber_loss", "mae", "poisson_log_loss", "rmse", "smape") ~ "accuracy"
+  ))
+
+# which gamma is chosen based on mean metric value for 5-fold? 10-fold?
+temp <- metrics |>
+  dplyr::group_by(code, type, .metric_type, .metric, mgcv_gamma) |>
+  dplyr::summarise(mean = mean(.estimate, na.rm = TRUE)) |>
+  dplyr::mutate(best_gamma = dplyr::case_match(
+    .metric,
+    c("ccc", "iic", "rsq") ~ mgcv_gamma[which.max(mean)],
+    c("huber_loss", "mae", "poisson_log_loss", "rmse", "smape") ~ mgcv_gamma[which.min(mean)]
+  )) |>
+  dplyr::group_by(code, type, .metric_type, .metric) |>
+  dplyr::summarise(best_gamma = unique(best_gamma))
+dplyr::filter(temp, code == "brac") |>
+  janitor::tabyl(.metric_type, best_gamma, type)
+
+# how often does gamma chosen by mae agree with gamma chosen by rmse?
+dplyr::filter(temp, code == "brac") |>
+  janitor::tabyl(.metric, best_gamma, type)
+
+# which gamma is chosen based on mean choice for 5-fold? 10-fold?
+temp <- metrics |>
+  tidyr::drop_na(.estimate) |>
+  dplyr::group_by(code, type, .metric_type, .metric, id) |>
+  dplyr::mutate(best_gamma = dplyr::case_match(
+    .metric,
+    c("ccc", "iic", "rsq") ~ mgcv_gamma[which.max(.estimate)],
+    c("huber_loss", "mae", "poisson_log_loss", "rmse", "smape") ~ mgcv_gamma[which.min(.estimate)]
+  )) |>
+  dplyr::summarise(best_gamma = unique(best_gamma))
+dplyr::filter(temp, code == "brac") |>
+  janitor::tabyl(.metric_type, best_gamma, type)
+
+dplyr::filter(metrics, code == "brac", type == "5-fold", .metric == "mae")
+```
+
+## Overall summary
+
+### Spatial cross-validation folds
+
+```{r}
+analysis <- data_analysis_resamples_spatial_5 |>
+  dplyr::pull(splits) |>
+  purrr::map(.f = rsample::analysis) |>
+  purrr::list_rbind(names_to = "split") |>
+  dplyr::mutate(set = "analysis")
+temp <- data_analysis_resamples_spatial_5 |>
+  dplyr::pull(splits) |>
+  purrr::map(.f = rsample::assessment) |>
+  purrr::list_rbind(names_to = "split") |>
+  dplyr::mutate(set = "assessment") |>
+  dplyr::bind_rows(analysis) |>
+  tibble::as_tibble() |>
+  sf::st_as_sf()
+ggplot2::ggplot(temp) +
+  ggplot2::geom_sf(mapping = ggplot2::aes(color = set), size = 0.25) +
+  ggplot2::facet_wrap(~ split, ncol = 5) +
+  ggplot2::scale_color_discrete(name = "Fold") +
+  ggplot2::labs(title = "Spatial block cross-validation: 5 folds") +
+  ggplot2::theme(legend.position = "bottom")
+
+analysis <- data_analysis_resamples_spatial_10 |>
+  dplyr::pull(splits) |>
+  purrr::map(.f = rsample::analysis) |>
+  purrr::list_rbind(names_to = "split") |>
+  dplyr::mutate(set = "analysis")
+temp <- data_analysis_resamples_spatial_10 |>
+  dplyr::pull(splits) |>
+  purrr::map(.f = rsample::assessment) |>
+  purrr::list_rbind(names_to = "split") |>
+  dplyr::mutate(set = "assessment") |>
+  dplyr::bind_rows(analysis) |>
+  tibble::as_tibble() |>
+  sf::st_as_sf()
+ggplot2::ggplot(temp) +
+  ggplot2::geom_sf(mapping = ggplot2::aes(color = set), size = 0.25) +
+  ggplot2::facet_wrap(~ split, ncol = 5) +
+  ggplot2::scale_color_discrete(name = "Fold") +
+  ggplot2::labs(title = "Spatial block cross-validation: 10 folds") +
+  ggplot2::theme(legend.position = "bottom")
+```
+
+### Comparing model performance between cross-validation sets
+
+```{r}
+metrics |>
+  dplyr::filter(.metric == "mae") |> 
+  ggplot2::ggplot(mapping = ggplot2::aes(mgcv_gamma, .estimate, group = id, color = type)) +
+  ggplot2::geom_line() +
+  ggplot2::facet_wrap(~ code, scales = "free") +
+  ggplot2::labs(color = "cross-validation",
+                x = "{mgcv} gamma argument",
+                y = "Mean estimate",
+                title = "Mean absolute error") +
+  ggplot2::theme(legend.position = "bottom")
+
+metrics |>
+  dplyr::filter(.metric == "mae") |> 
+  dplyr::group_by(code, mgcv_gamma, type) |> 
+  dplyr::summarise(mean = mean(.estimate, na.rm = TRUE)) |> 
+  ggplot2::ggplot(mapping = ggplot2::aes(mgcv_gamma, mean, group = type, color = type)) +
+  ggplot2::geom_line() +
+  ggplot2::facet_wrap(~ code, scales = "free") +
+  ggplot2::labs(color = "cross-validation",
+                x = "{mgcv} gamma argument",
+                y = "Mean estimate",
+                title = "Mean absolute error") +
+  ggplot2::theme(legend.position = "bottom")
+
+metrics |>
+  dplyr::filter(.metric == "rmse") |> 
+  dplyr::group_by(code, mgcv_gamma, type) |> 
+  dplyr::summarise(mean = mean(.estimate, na.rm = TRUE)) |> 
+  ggplot2::ggplot(mapping = ggplot2::aes(mgcv_gamma, mean, group = type, color = type)) +
+  ggplot2::geom_line() +
+  ggplot2::facet_wrap(~ code, scales = "free") +
+  ggplot2::labs(color = "cross-validation",
+                x = "{mgcv} gamma argument",
+                y = "Mean estimate",
+                title = "Root mean square error") +
+  ggplot2::theme(legend.position = "bottom")
+# need to incorporate standard error values (i.e., step plot?)
+```
+
+## Species-specific summaries
+
+```{r}
+#| include: false
+
+spp <- models_to_run |> 
+  dplyr::arrange(sortorder, mgcv_gamma) |> 
+  dplyr::pull(code) |> 
+  unique()
+spp_nm <- dplyr::filter(data_species_info, tolower(code) %in% spp) |>
+  dplyr::pull(common_nm)
+
+# plots
+make_plot <- function(spec) {
+  sp_nm <- dplyr::filter(data_species_info, tolower(code) == spec) |>
+    dplyr::pull(common_nm)
+  
+  metrics |>
+    dplyr::filter(code == spec) |>
+    dplyr::group_by(mgcv_gamma, .metric, type) |>
+    dplyr::summarise(mean = mean(.estimate, na.rm = TRUE)) |>
+    ggplot2::ggplot(mapping = ggplot2::aes(mgcv_gamma, mean,
+                                           group = type,
+                                           color = type)) +
+    ggplot2::geom_line() +
+    ggplot2::facet_wrap(ggplot2::vars(.metric), scales = "free_y") +
+    ggplot2::labs(color = NULL,
+                  x = "{mgcv} gamma argument",
+                  y = "Estimate",
+                  title = sp_nm) +
+    ggplot2::theme(legend.position = "bottom")
+}
+list_plot <- purrr::map(spp, make_plot)
+
+df <- tibble::tibble(sp = spp, nm = spp_nm, plots = list_plot)
+```
+
+```{r}
+#| output: asis
+
+res <- purrr::pmap_chr(df, \(sp, nm, plots) {
+  knitr::knit_child(text = c(
+    "### `r nm`",
+    "```{r}",
+    "#| echo: false",
+    "plots",
+    "```",
+    ""), envir = environment(), quiet = TRUE)
+})
+cat(res, sep = "\n")
+```
+

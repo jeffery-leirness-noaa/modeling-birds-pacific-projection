@@ -16,7 +16,7 @@ azure_auth_token <- function(
         app <- try(AzureRMR::get_azure_login()$token$client$client_id,
                    silent = TRUE)
         if (inherits(app, "try-error")) {
-          AzureRMR::create_azure_login()
+          AzureRMR::create_azure_login(auth_type = auth_type)
           app <- AzureRMR::get_azure_login()$token$client$client_id
         }
       }

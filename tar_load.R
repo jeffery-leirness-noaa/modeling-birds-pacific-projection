@@ -65,7 +65,6 @@ tar_load_azure_store("model_fit_resamples_spatial")
 
 
 
-
 workflows::extract_preprocessor(model_workflows[[1]]) |>
   recipes::prep()
 
@@ -207,17 +206,17 @@ purrr::map(model_fit_resamples_spatial_combined,
 
 
 
-tar_load_azure_store("model_fit_resamples_spatial")
+tar_load_azure_store("model_fit_resamples_spatial_combined")
 metrics <- list()
-for (i in seq(along = model_fit_resamples_spatial)) {
-  metrics[[i]] <- tune::collect_metrics(model_fit_resamples_spatial[[i]]) |>
-    dplyr::mutate(code = tune::extract_preprocessor(model_fit_resamples_spatial[[i]])$var_info |>
+for (i in seq(along = model_fit_resamples_spatial_combined)) {
+  metrics[[i]] <- tune::collect_metrics(model_fit_resamples_spatial_combined[[i]]) |>
+    dplyr::mutate(code = tune::extract_preprocessor(model_fit_resamples_spatial_combined[[i]])$var_info |>
                     dplyr::filter(role == "outcome") |>
                     dplyr::pull(variable),
-                  mgcv_gamma = tune::extract_spec_parsnip(model_fit_resamples_spatial[[i]])$args$adjust_deg_free |>
+                  mgcv_gamma = tune::extract_spec_parsnip(model_fit_resamples_spatial_combined[[i]])$args$adjust_deg_free |>
                     rlang::as_label(),
                   .before = tidyselect::everything())
-  # code_i <- model_fit_resamples_spatial[[i]] |>
+  # code_i <- model_fit_resamples_spatial_combined[[i]] |>
   #   tune::collect_extracts() |>
   #   dplyr::pull(.extracts) |>
   #   purrr::map(\(x) parsnip::extract_fit_engine(x[[2]])$formula |>
@@ -225,7 +224,7 @@ for (i in seq(along = model_fit_resamples_spatial)) {
   #                as.character()) |>
   #   purrr::list_c() |>
   #   unique()
-  # mgcv_gamma_i <- model_fit_resamples_spatial[[i]] |>
+  # mgcv_gamma_i <- model_fit_resamples_spatial_combined[[i]] |>
   #   tune::collect_extracts() |>
   #   dplyr::pull(.extracts) |>
   #   purrr::map(\(x) parsnip::extract_fit_engine(x[[2]])$call$gamma |>
@@ -233,12 +232,51 @@ for (i in seq(along = model_fit_resamples_spatial)) {
   #   purrr::list_c() |>
   #   unique()
 }
+rm(model_fit_resamples_spatial_combined)
+gc()
 metrics <- purrr::list_rbind(metrics)
 ggplot2::ggplot(metrics |>
                   dplyr::filter(.metric == "mae"),
                 mapping = ggplot2::aes(mgcv_gamma, mean, group = code)) +
   ggplot2::geom_line() +
   ggplot2::facet_wrap(~ code, scales = "free")
+
+
+tar_load_azure_store("model_fit_resamples_spatial2_combined")
+metrics <- list()
+for (i in seq(along = model_fit_resamples_spatial2_combined)) {
+  metrics[[i]] <- tune::collect_metrics(model_fit_resamples_spatial2_combined[[i]]) |>
+    dplyr::mutate(code = tune::extract_preprocessor(model_fit_resamples_spatial2_combined[[i]])$var_info |>
+                    dplyr::filter(role == "outcome") |>
+                    dplyr::pull(variable),
+                  mgcv_gamma = tune::extract_spec_parsnip(model_fit_resamples_spatial2_combined[[i]])$args$adjust_deg_free |>
+                    rlang::as_label(),
+                  .before = tidyselect::everything())
+  # code_i <- model_fit_resamples_spatial2_combined[[i]] |>
+  #   tune::collect_extracts() |>
+  #   dplyr::pull(.extracts) |>
+  #   purrr::map(\(x) parsnip::extract_fit_engine(x[[2]])$formula |>
+  #                formula.tools::lhs() |>
+  #                as.character()) |>
+  #   purrr::list_c() |>
+  #   unique()
+  # mgcv_gamma_i <- model_fit_resamples_spatial2_combined[[i]] |>
+  #   tune::collect_extracts() |>
+  #   dplyr::pull(.extracts) |>
+  #   purrr::map(\(x) parsnip::extract_fit_engine(x[[2]])$call$gamma |>
+  #                rlang::as_label()) |>
+  #   purrr::list_c() |>
+  #   unique()
+}
+rm(model_fit_resamples_spatial2_combined)
+gc()
+metrics <- purrr::list_rbind(metrics)
+ggplot2::ggplot(metrics |>
+                  dplyr::filter(.metric == "mae"),
+                mapping = ggplot2::aes(mgcv_gamma, mean, group = code)) +
+  ggplot2::geom_line() +
+  ggplot2::facet_wrap(~ code, scales = "free")
+
 
 
 

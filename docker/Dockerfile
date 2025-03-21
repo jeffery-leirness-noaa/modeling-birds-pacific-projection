@@ -1,5 +1,5 @@
 # install specific R version
-FROM rocker/geospatial:4.4.1
+FROM rocker/geospatial:4.4.3
 
 # install renv
 RUN R -e "install.packages('renv', repos = c(CRAN = 'https://cloud.r-project.org'))"
