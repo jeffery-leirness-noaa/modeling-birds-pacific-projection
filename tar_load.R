@@ -17,6 +17,48 @@ lobstr::obj_size(ck)
 # tar_load_azure_store("data_analysis_resamples_bootstrap")
 
 
+
+
+tar_load_azure_store("data_prediction_gfdl_2000")
+data <- data_prediction_gfdl_2000
+tar_load_azure_store("data_bathy_10km")
+tar_load_azure_store("data_slope_10km")
+tar_load_azure_store("models_to_run")
+idx <- which(models_to_run$code == "pfsh" & models_to_run$mgcv_gamma == 4)
+nm <- targets::tar_branch_names(model_fits, index = idx)
+tar_load_azure_store(nm)
+assign("model_fits", get(nm))
+new_data <- prepare_data_prediction(data,
+                                    label = "reanalysis",
+                                    add = list(depth = data_bathy_10km,
+                                               slope = data_slope_10km))
+pred <- predict(model_fits, new_data = new_data, type = "raw",
+                opts = list(type = "response", exclude = "s(survey_id)")) |>
+  tibble::as_tibble() |>
+  dplyr::rename(.pred = value)
+pred <- dplyr::bind_cols(new_data, pred)
+r <- data_bathy_10km
+r[!is.na(r)] <- NA
+tm <- sort(unique(pred$date))
+r_t <- purrr::map(tm, .f = \(x) {
+  r_i <- r
+  r_i[pred$cell[pred$date == x]] <- pred$.pred[pred$date == x]
+  names(r_i) <- glue::glue("prediction_{x}")
+  terra::time(r_i) <- x
+  r_i
+})
+r_t <- terra::rast(r_t)
+
+
+temp <- dplyr::group_by(pred, cell) |>
+  dplyr::summarise(.pred = sum(.pred))
+r <- data_bathy_10km
+r[!is.na(r)] <- NA
+r[temp$cell] <- temp$.pred
+terra::plot(r)
+
+
+
 # plot spatial resample folds
 tar_load_azure_store("data_analysis_resamples_spatial")
 analysis <- data_analysis_resamples_spatial |>

@@ -35,7 +35,7 @@ targets::tar_option_set(
   retrieval = "worker",
   cue = targets::tar_cue(repository = FALSE),
   controller = crew::crew_controller_local(
-    workers = 12,
+    workers = 24,
     seconds_idle = 30,
     garbage_collection = TRUE
   )
@@ -154,19 +154,6 @@ target_data_slope_10km <- targets::tar_target(
   format = define_tar_format_terra_rast("GTiff")
 )
 
-# create prediction datasets (by year)
-values_data_prediction <- tidyr::expand_grid(esm = c("gfdl", "hadl", "ipsl"),
-                                             year = 1980:2100)
-target_data_prediction <- tarchetypes::tar_map(
-  values = values_data_prediction,
-  targets::tar_target(
-    data_prediction,
-    command = create_prediction_dataset(fs::path("environmental-data", esm),
-                                        year),
-    cue = targets::tar_cue("never")
-  )
-)
-
 # create analysis dataset
 target_data_analysis <- targets::tar_target(
   data_analysis,
@@ -216,24 +203,9 @@ target_species_to_model <- targets::tar_target(
 target_models_to_run <- targets::tar_target(
   models_to_run,
   command = create_models_to_run_df(species_to_model) |>
+    tibble::rowid_to_column(var = "model_id") |>
     dplyr::filter(!spatial_effect,
                   stringr::str_starts(code, pattern = "grp_", negate = TRUE))
-)
-
-# define model workflows
-target_model_workflows <- targets::tar_target(
-  model_workflows,
-  command = define_model_workflow(as.formula(models_to_run$model_formula),
-                                  data = data_analysis,
-                                  species_size_class = models_to_run$size_class,
-                                  mgcv_select = TRUE,
-                                  mgcv_gamma = models_to_run$mgcv_gamma),
-  pattern = map(models_to_run),
-  iteration = "list"
-)
-target_model_workflows_combined <- targets::tar_target(
-  model_workflows_combined,
-  command = model_workflows
 )
 
 # define model metrics
@@ -257,67 +229,218 @@ target_model_metrics <- targets::tar_target(
                                   yardstick::smape)
 )
 
+# define model workflows
+target_model_workflows <- targets::tar_target(
+  model_workflows,
+  command = tibble::tibble(model_id = models_to_run$model_id,
+                           .workflow = list(
+                             define_model_workflow(
+                               as.formula(models_to_run$model_formula),
+                               data = data_analysis,
+                               species_size_class = models_to_run$size_class,
+                               mgcv_select = TRUE,
+                               mgcv_gamma = models_to_run$mgcv_gamma
+                             ))),
+  pattern = map(models_to_run),
+  iteration = "list"
+)
+
+# example of how to subset a dynamic branch
+# target_test_combine <- targets::tar_target(
+#   test_combine,
+#   command = {
+#     ids <- dplyr::filter(models_to_run, code %in% c("comu", "bfal", "pfsh")) |>
+#       dplyr::pull(model_id)
+#     dplyr::bind_rows(model_workflows) |>
+#       dplyr::filter(model_id %in% ids)
+#   }
+# )
+
 # fit models
 target_model_fits <- targets::tar_target(
   model_fits,
-  command = generics::fit(model_workflows, data = data_analysis),
-  pattern = map(model_workflows),
+  command = tibble::tibble(model_id = model_workflows$model_id,
+                           .fit = list(
+                             generics::fit(model_workflows$.workflow[[1]],
+                                           data = data_analysis)
+                           )),
+  pattern = map(model_workflows) |>
+    head(n = 2),
   iteration = "list"
-)
-target_model_fits_combined <- targets::tar_target(
-  model_fits_combined,
-  command = model_fits
 )
 
 # fit models via 5-fold spatial resampling
 target_model_fit_resamples_spatial_5 <- targets::tar_target(
   model_fit_resamples_spatial_5,
-  command = tune::fit_resamples(
-    model_workflows,
-    resamples = data_analysis_resamples_spatial_5,
-    metrics = model_metrics,
-    control = tune::control_resamples(
-      extract = function(x) list(workflows::extract_recipe(x),
-                                 workflows::extract_fit_parsnip(x)),
-      save_pred = TRUE,
-      save_workflow = TRUE
+  command = tibble::tibble(
+    model_id = model_workflows$model_id,
+    .fit = list(
+      tune::fit_resamples(
+        model_workflows$.workflow[[1]],
+        resamples = data_analysis_resamples_spatial_5,
+        metrics = model_metrics,
+        control = tune::control_resamples(
+          extract = function(x) list(workflows::extract_recipe(x),
+                                     workflows::extract_fit_parsnip(x)),
+          save_pred = TRUE,
+          save_workflow = TRUE
+        )
+      )
     )
   ),
   pattern = map(model_workflows),
   iteration = "list"
-)
-target_model_fit_resamples_spatial_5_combined <- targets::tar_target(
-  model_fit_resamples_spatial_5_combined,
-  command = model_fit_resamples_spatial_5
 )
 
 # fit models via 10-fold spatial resampling
 target_model_fit_resamples_spatial_10 <- targets::tar_target(
   model_fit_resamples_spatial_10,
-  command = tune::fit_resamples(
-    model_workflows,
-    resamples = data_analysis_resamples_spatial_10,
-    metrics = model_metrics,
-    control = tune::control_resamples(
-      extract = function(x) list(workflows::extract_recipe(x),
-                                 workflows::extract_fit_parsnip(x)),
-      save_pred = TRUE,
-      save_workflow = TRUE
+  command = tibble::tibble(
+    model_id = model_workflows$model_id,
+    .fit = list(
+      tune::fit_resamples(
+        model_workflows$.workflow[[1]],
+        resamples = data_analysis_resamples_spatial_10,
+        metrics = model_metrics,
+        control = tune::control_resamples(
+          extract = function(x) list(workflows::extract_recipe(x),
+                                     workflows::extract_fit_parsnip(x)),
+          save_pred = TRUE,
+          save_workflow = TRUE
+        )
+      )
     )
   ),
   pattern = map(model_workflows),
   iteration = "list"
 )
-target_model_fit_resamples_spatial_10_combined <- targets::tar_target(
-  model_fit_resamples_spatial_10_combined,
-  command = model_fit_resamples_spatial_10
+
+# create prediction datasets (by year)
+values_data_prediction_year <- tidyr::expand_grid(
+  esm = c("gfdl", "hadl", "ipsl"),
+  year = 1980:2100
+)
+# target_data_prediction_year <- tarchetypes::tar_map(
+#   values = values_data_prediction_year,
+#   targets::tar_target(
+#     data_prediction,
+#     command = create_prediction_dataset(fs::path("environmental-data", esm),
+#                                         year),
+#     cue = targets::tar_cue("never")
+#   )
+# )
+target_data_prediction_year <- tarchetypes::tar_map(
+  values = values_data_prediction_year,
+  targets::tar_target(
+    data_prediction,
+    command = create_prediction_dataset(fs::path("environmental-data", esm),
+                                        year),
+    cue = targets::tar_cue("never")
+  ),
+  target_data_prediction_group_date <- tarchetypes::tar_group_by(
+    data_prediction_group_date,
+    command = data_prediction,
+    date
+  ),
+  target_data_prediction_date <- targets::tar_target(
+    data_prediction_date,
+    command = data_prediction_group_date,
+    pattern = map(data_prediction_group_date) |>
+      head(n = 3)
+  )
 )
 
+# create prediction datasets (by date)
+# values_data_prediction_date <- tidyr::expand_grid(
+#   esm = c("gfdl", "hadl", "ipsl"),
+#   vdate = (lubridate::as_date("1980-01-01"):lubridate::as_date("2100-12-31")) |>
+#     lubridate::as_date()
+# ) |>
+#   dplyr::mutate(
+#     year = lubridate::year(vdate),
+#     month = lubridate::month(vdate),
+#     day = lubridate::day(vdate),
+#     target_name_in = rlang::syms(glue::glue("data_prediction_{esm}_{year}"))
+#   )
+# # target_data_prediction_date <- tarchetypes::tar_map(
+# #   values = values_data_prediction_date |>
+# #     head(n = 5),
+# #   targets::tar_target(
+# #     data_prediction,
+# #     command = dplyr::filter(target_name_in, date == vdate)
+# #   ),
+# #   names = tidyselect::all_of(c("esm", "year", "month", "day"))
+# # )
+# target_data_prediction_group <- tarchetypes::tar_group_by(
+#   data_prediction_group,
+#   command = data_prediction_gfdl_1980,
+#   date
+# )
+# target_data_prediction_date <- targets::tar_target(
+#   data_prediction_date,
+#   command = data_prediction_group,
+#   pattern = map(data_prediction_group) |>
+#     head(n = 5)
+# )
+# name_data <- paste0("data_prediction_gfdl_1980_1_", 1:3)
+# sym_data <- rlang::syms(name_data)
+# command_test <- substitute(dplyr::bind_rows(data), env = list(data = sym_data))
+# target_test <- targets::tar_target_raw(
+#   "test_combine",
+#   # command = list(data_prediction_gfdl_1980_1_1,
+#   #                data_prediction_gfdl_1980_1_2,
+#   #                data_prediction_gfdl_1980_1_3) |>
+#   #   dplyr::bind_rows()
+#   # command = paste0("data_prediction_gfdl_1980_1_", 1:3) |>
+#   #   rlang::syms() |>
+#   #   dplyr::bind_rows()
+#   # command = paste0("data_prediction_gfdl_1980_1_", 1:3) |>
+#   #   targets::tar_read_raw() |>
+#   #   dplyr::bind_rows()
+#   command = command_test
+# )
+
 # create prediction rasters from fitted models
-# target_model_predictions <- targets::tar_target(
-#   model_predictions,
-#   command = predict(model_fits, new_data = new_data, type = "raw",
-#                     opts = list(type = "response", exclude = "s(survey_id)"))
+# values_model_predictions <- values_data_prediction |>
+#   dplyr::mutate(
+#     target = rlang::syms(glue::glue("data_prediction_{esm}_{year}"))
+#   ) |>
+#   dplyr::filter(esm == "gfdl", year == 1980)
+# # target_model_predictions <- targets::tar_target(
+# #   model_predictions,
+# #   command = {
+# #     new_data <- prepare_data_prediction(data_prediction_gfdl_2000,
+# #                                         label = "reanalysis",
+# #                                         add = list(depth = data_bathy_10km,
+# #                                                    slope = data_slope_10km))
+# #     pred <- predict(model_fits, new_data = new_data, type = "raw",
+# #                     opts = list(type = "response", exclude = "s(survey_id)")) |>
+# #       tibble::as_tibble() |>
+# #       dplyr::rename(.pred = value)
+# #   },
+# #   pattern = map(model_fits) |>
+# #     head(n = 1),
+# #   iteration = "list"
+# # )
+# target_model_predictions <- tarchetypes::tar_map(
+#   values = values_model_predictions,
+#   targets::tar_target(
+#     model_predictions,
+#     command = {
+#       new_data <- prepare_data_prediction(target,
+#                                           label = "reanalysis",
+#                                           add = list(depth = data_bathy_10km,
+#                                                      slope = data_slope_10km))
+#       pred <- predict(model_fits, new_data = new_data, type = "raw",
+#                       opts = list(type = "response", exclude = "s(survey_id)")) |>
+#         tibble::as_tibble() |>
+#         dplyr::rename(.pred = value)
+#     },
+#     pattern = map(model_fits) |>
+#       head(n = 2),
+#     iteration = "list"
+#   ),
+#   names = tidyselect::all_of()
 # )
 
 # submit targets ----------------------------------------------------------
@@ -332,19 +455,21 @@ list(
   target_data_climate_mask,
   target_data_bathy_10km,
   target_data_slope_10km,
-  target_data_prediction,
   target_data_analysis,
   target_data_analysis_resamples_spatial_5,
   target_data_analysis_resamples_spatial_10,
   target_data_analysis_resamples_bootstrap,
   target_species_to_model,
   target_models_to_run,
-  target_model_workflows,
-  target_model_workflows_combined,
   target_model_metrics,
-  target_model_fits
+  target_model_workflows,
+  # target_model_fits,
   # target_model_fit_resamples_spatial_5,
-  # target_model_fit_resamples_spatial_5_combined,
   # target_model_fit_resamples_spatial_10,
-  # target_model_fit_resamples_spatial_10_combined
+  # target_data_prediction_year,
+  target_test_combine
+  # target_data_prediction_group,
+  # target_data_prediction_date
+  # target_test
+  # target_model_predictions
 )
