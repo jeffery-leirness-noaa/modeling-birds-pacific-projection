@@ -35,7 +35,7 @@ targets::tar_option_set(
   retrieval = "worker",
   cue = targets::tar_cue(repository = FALSE),
   controller = crew::crew_controller_local(
-    workers = 24,
+    workers = 12,
     seconds_idle = 30,
     garbage_collection = TRUE
   )
@@ -264,8 +264,7 @@ target_model_fits <- targets::tar_target(
                              generics::fit(model_workflows$.workflow[[1]],
                                            data = data_analysis)
                            )),
-  pattern = map(model_workflows) |>
-    head(n = 2),
+  pattern = map(model_workflows),
   iteration = "list"
 )
 
@@ -320,15 +319,6 @@ values_data_prediction_year <- tidyr::expand_grid(
   esm = c("gfdl", "hadl", "ipsl"),
   year = 1980:2100
 )
-# target_data_prediction_year <- tarchetypes::tar_map(
-#   values = values_data_prediction_year,
-#   targets::tar_target(
-#     data_prediction,
-#     command = create_prediction_dataset(fs::path("environmental-data", esm),
-#                                         year),
-#     cue = targets::tar_cue("never")
-#   )
-# )
 target_data_prediction_year <- tarchetypes::tar_map(
   values = values_data_prediction_year,
   targets::tar_target(
@@ -336,19 +326,28 @@ target_data_prediction_year <- tarchetypes::tar_map(
     command = create_prediction_dataset(fs::path("environmental-data", esm),
                                         year),
     cue = targets::tar_cue("never")
-  ),
-  target_data_prediction_group_date <- tarchetypes::tar_group_by(
-    data_prediction_group_date,
-    command = data_prediction,
-    date
-  ),
-  target_data_prediction_date <- targets::tar_target(
-    data_prediction_date,
-    command = data_prediction_group_date,
-    pattern = map(data_prediction_group_date) |>
-      head(n = 3)
   )
 )
+# target_data_prediction_year <- tarchetypes::tar_map(
+#   values = values_data_prediction_year,
+#   targets::tar_target(
+#     data_prediction,
+#     command = create_prediction_dataset(fs::path("environmental-data", esm),
+#                                         year),
+#     cue = targets::tar_cue("never")
+#   ),
+#   target_data_prediction_group_date <- tarchetypes::tar_group_by(
+#     data_prediction_group_date,
+#     command = data_prediction,
+#     date
+#   ),
+#   target_data_prediction_date <- targets::tar_target(
+#     data_prediction_date,
+#     command = data_prediction_group_date,
+#     pattern = map(data_prediction_group_date) |>
+#       head(n = 3)
+#   )
+# )
 
 # create prediction datasets (by date)
 # values_data_prediction_date <- tidyr::expand_grid(
@@ -466,8 +465,8 @@ list(
   # target_model_fits,
   # target_model_fit_resamples_spatial_5,
   # target_model_fit_resamples_spatial_10,
-  # target_data_prediction_year,
-  target_test_combine
+  target_data_prediction_year
+  # target_test_combine
   # target_data_prediction_group,
   # target_data_prediction_date
   # target_test
