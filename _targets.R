@@ -35,7 +35,7 @@ targets::tar_option_set(
   retrieval = "worker",
   cue = targets::tar_cue(repository = FALSE),
   controller = crew::crew_controller_local(
-    workers = 12,
+    workers = 24,
     seconds_idle = 30,
     garbage_collection = TRUE
   )
@@ -241,7 +241,8 @@ target_model_workflows <- targets::tar_target(
                                mgcv_select = TRUE,
                                mgcv_gamma = models_to_run$mgcv_gamma
                              ))),
-  pattern = map(models_to_run),
+  pattern = map(models_to_run) |>
+    head(n = 3),
   iteration = "list"
 )
 
@@ -315,12 +316,12 @@ target_model_fit_resamples_spatial_10 <- targets::tar_target(
 )
 
 # create prediction datasets (by year)
-values_data_prediction_year <- tidyr::expand_grid(
-  esm = c("gfdl", "hadl", "ipsl"),
-  year = 1980:2100
+values_data_prediction <- tidyr::expand_grid(
+  esm = c("gfdl"),
+  year = 1980:1982
 )
-target_data_prediction_year <- tarchetypes::tar_map(
-  values = values_data_prediction_year,
+target_data_prediction <- tarchetypes::tar_map(
+  values = values_data_prediction,
   targets::tar_target(
     data_prediction,
     command = create_prediction_dataset(fs::path("environmental-data", esm),
@@ -328,119 +329,33 @@ target_data_prediction_year <- tarchetypes::tar_map(
     cue = targets::tar_cue("never")
   )
 )
-# target_data_prediction_year <- tarchetypes::tar_map(
-#   values = values_data_prediction_year,
-#   targets::tar_target(
-#     data_prediction,
-#     command = create_prediction_dataset(fs::path("environmental-data", esm),
-#                                         year),
-#     cue = targets::tar_cue("never")
-#   ),
-#   target_data_prediction_group_date <- tarchetypes::tar_group_by(
-#     data_prediction_group_date,
-#     command = data_prediction,
-#     date
-#   ),
-#   target_data_prediction_date <- targets::tar_target(
-#     data_prediction_date,
-#     command = data_prediction_group_date,
-#     pattern = map(data_prediction_group_date) |>
-#       head(n = 3)
-#   )
-# )
 
-# create prediction datasets (by date)
-# values_data_prediction_date <- tidyr::expand_grid(
-#   esm = c("gfdl", "hadl", "ipsl"),
-#   vdate = (lubridate::as_date("1980-01-01"):lubridate::as_date("2100-12-31")) |>
-#     lubridate::as_date()
-# ) |>
-#   dplyr::mutate(
-#     year = lubridate::year(vdate),
-#     month = lubridate::month(vdate),
-#     day = lubridate::day(vdate),
-#     target_name_in = rlang::syms(glue::glue("data_prediction_{esm}_{year}"))
-#   )
-# # target_data_prediction_date <- tarchetypes::tar_map(
-# #   values = values_data_prediction_date |>
-# #     head(n = 5),
-# #   targets::tar_target(
-# #     data_prediction,
-# #     command = dplyr::filter(target_name_in, date == vdate)
-# #   ),
-# #   names = tidyselect::all_of(c("esm", "year", "month", "day"))
-# # )
-# target_data_prediction_group <- tarchetypes::tar_group_by(
-#   data_prediction_group,
-#   command = data_prediction_gfdl_1980,
-#   date
-# )
-# target_data_prediction_date <- targets::tar_target(
-#   data_prediction_date,
-#   command = data_prediction_group,
-#   pattern = map(data_prediction_group) |>
-#     head(n = 5)
-# )
-# name_data <- paste0("data_prediction_gfdl_1980_1_", 1:3)
-# sym_data <- rlang::syms(name_data)
-# command_test <- substitute(dplyr::bind_rows(data), env = list(data = sym_data))
-# target_test <- targets::tar_target_raw(
-#   "test_combine",
-#   # command = list(data_prediction_gfdl_1980_1_1,
-#   #                data_prediction_gfdl_1980_1_2,
-#   #                data_prediction_gfdl_1980_1_3) |>
-#   #   dplyr::bind_rows()
-#   # command = paste0("data_prediction_gfdl_1980_1_", 1:3) |>
-#   #   rlang::syms() |>
-#   #   dplyr::bind_rows()
-#   # command = paste0("data_prediction_gfdl_1980_1_", 1:3) |>
-#   #   targets::tar_read_raw() |>
-#   #   dplyr::bind_rows()
-#   command = command_test
-# )
-
-# create prediction rasters from fitted models
-# values_model_predictions <- values_data_prediction |>
-#   dplyr::mutate(
-#     target = rlang::syms(glue::glue("data_prediction_{esm}_{year}"))
-#   ) |>
-#   dplyr::filter(esm == "gfdl", year == 1980)
-# # target_model_predictions <- targets::tar_target(
-# #   model_predictions,
-# #   command = {
-# #     new_data <- prepare_data_prediction(data_prediction_gfdl_2000,
-# #                                         label = "reanalysis",
-# #                                         add = list(depth = data_bathy_10km,
-# #                                                    slope = data_slope_10km))
-# #     pred <- predict(model_fits, new_data = new_data, type = "raw",
-# #                     opts = list(type = "response", exclude = "s(survey_id)")) |>
-# #       tibble::as_tibble() |>
-# #       dplyr::rename(.pred = value)
-# #   },
-# #   pattern = map(model_fits) |>
-# #     head(n = 1),
-# #   iteration = "list"
-# # )
-# target_model_predictions <- tarchetypes::tar_map(
-#   values = values_model_predictions,
-#   targets::tar_target(
-#     model_predictions,
-#     command = {
-#       new_data <- prepare_data_prediction(target,
-#                                           label = "reanalysis",
-#                                           add = list(depth = data_bathy_10km,
-#                                                      slope = data_slope_10km))
-#       pred <- predict(model_fits, new_data = new_data, type = "raw",
-#                       opts = list(type = "response", exclude = "s(survey_id)")) |>
-#         tibble::as_tibble() |>
-#         dplyr::rename(.pred = value)
-#     },
-#     pattern = map(model_fits) |>
-#       head(n = 2),
-#     iteration = "list"
-#   ),
-#   names = tidyselect::all_of()
-# )
+# create predictions from fitted models
+values_model_predictions <- values_data_prediction |>
+  dplyr::mutate(
+    target = rlang::syms(glue::glue("data_prediction_{esm}_{year}"))
+  )
+target_model_predictions <- tarchetypes::tar_map(
+  values = values_model_predictions,
+  targets::tar_target(
+    model_predictions,
+    command = {
+      new_data <- prepare_data_prediction(target,
+                                          label = "reanalysis",
+                                          add = list(depth = data_bathy_10km,
+                                                     slope = data_slope_10km))
+      pred <- predict(model_fits, new_data = new_data, type = "raw",
+                      opts = list(type = "response", exclude = "s(survey_id)")) |>
+        tibble::as_tibble() |>
+        dplyr::rename(.pred = value)
+      tibble::tibble(model_id = model_fits$model_id,
+                     .pred = dplyr::bind_rows(new_data, pred))
+    },
+    pattern = map(model_fits),
+    iteration = "list"
+  ),
+  names = tidyselect::all_of(c("esm", "year"))
+)
 
 # submit targets ----------------------------------------------------------
 list(
@@ -462,13 +377,9 @@ list(
   target_models_to_run,
   target_model_metrics,
   target_model_workflows,
-  # target_model_fits,
-  # target_model_fit_resamples_spatial_5,
-  # target_model_fit_resamples_spatial_10,
-  target_data_prediction_year
-  # target_test_combine
-  # target_data_prediction_group,
-  # target_data_prediction_date
-  # target_test
-  # target_model_predictions
+  target_model_fits,
+  target_model_fit_resamples_spatial_5,
+  target_model_fit_resamples_spatial_10,
+  target_data_prediction,
+  target_model_predictions
 )

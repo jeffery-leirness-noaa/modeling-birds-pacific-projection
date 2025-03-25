@@ -5,7 +5,8 @@ job <- submit_job_rfile(
   outputs = list(
     dir_targets_cas = paste0(
       Sys.getenv("AML_DATASTORE_PROCESSING"),
-      targets::tar_path_store()
+      targets::tar_path_store(),
+      "_test"
     ),
     dir_targets_store = paste0(
       Sys.getenv("AML_DATASTORE_WORKINGDIR"),
