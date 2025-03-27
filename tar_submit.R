@@ -16,7 +16,7 @@ job <- submit_job_rfile(
     dir_output = Sys.getenv("AML_DATASTORE_OUTPUT")
   ),
   environment = Sys.getenv("AML_ENVIRONMENT"),
-  compute = "nccos-vm-cluster-d32av4",
+  compute = "nccos-vm-cluster-d14v2",
   experiment_name = "run-targets-tar-make",
   display_name = "run-targets-tar-make",
   description = "Run targets::tar_make() on compute cluster."

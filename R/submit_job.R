@@ -1,7 +1,7 @@
 reticulate::py_require(
   c("azure.ai.ml", "azure.identity"),
   python_version = "3.13.2",
-  exclude_newer = "2025-03-15",
+  exclude_newer = "2025-03-25",
   action = "set"
 )
 
