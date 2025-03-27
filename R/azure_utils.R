@@ -73,7 +73,9 @@ azure_upload <- function(key, path) {
   AzureStor::upload_to_url(path,
                            dest = paste(Sys.getenv("TARGETS_ENDPOINT"),
                                         Sys.getenv("TARGETS_CONTAINER"),
-                                        targets::tar_path_store(), key, sep = "/"),
+                                        Sys.getenv("TARGETS_REPOSITORY_CAS"),
+                                        key,
+                                        sep = "/"),
                            token = azure_auth_token())
 }
 
@@ -111,7 +113,9 @@ azure_download <- function(key, path) {
   }
   AzureStor::download_from_url(paste(Sys.getenv("TARGETS_ENDPOINT"),
                                      Sys.getenv("TARGETS_CONTAINER"),
-                                     targets::tar_path_store(), key, sep = "/"),
+                                     Sys.getenv("TARGETS_REPOSITORY_CAS"),
+                                     key,
+                                     sep = "/"),
                                dest = path,
                                token = azure_auth_token(),
                                overwrite = TRUE)
@@ -152,5 +156,7 @@ azure_exists <- function(key) {
   AzureStor::storage_endpoint(Sys.getenv("TARGETS_ENDPOINT"),
                               token = azure_auth_token()) |>
     AzureStor::storage_container(name = Sys.getenv("TARGETS_CONTAINER")) |>
-    AzureStor::storage_file_exists(fs::path(targets::tar_path_store(), key))
+    AzureStor::storage_file_exists(
+      fs::path(Sys.getenv("TARGETS_REPOSITORY_CAS"), key)
+    )
 }

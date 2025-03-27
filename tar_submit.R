@@ -4,14 +4,16 @@ job <- submit_job_rfile(
   inputs = list(dir_in = Sys.getenv("AML_DATASTORE_RAW")),
   outputs = list(
     dir_targets_cas = paste0(
-      Sys.getenv("AML_DATASTORE_PROCESSING"),
-      targets::tar_path_store()
+      Sys.getenv(paste0("AML_DATASTORE_",
+                        toupper(Sys.getenv("TARGETS_CONTAINER")))),
+      Sys.getenv("TARGETS_REPOSITORY_CAS")
     ),
     dir_targets_store = paste0(
       Sys.getenv("AML_DATASTORE_WORKINGDIR"),
       targets::tar_path_store()
     ),
-    dir_processing = Sys.getenv("AML_DATASTORE_PROCESSING")
+    dir_processing = Sys.getenv("AML_DATASTORE_PROCESSING"),
+    dir_output = Sys.getenv("AML_DATASTORE_OUTPUT")
   ),
   environment = Sys.getenv("AML_ENVIRONMENT"),
   compute = "nccos-vm-cluster-d32av4",

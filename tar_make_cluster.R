@@ -5,11 +5,16 @@ option_list <- list(
                         dest = "dir_in",
                         default = "data",
                         help = "Input directory to use [default %default]"),
-  optparse::make_option("--dir_out",
+  optparse::make_option("--dir_output",
                         type = "character",
-                        dest = "dir_out",
+                        dest = "dir_output",
                         default = "output",
                         help = "Output directory to use [default %default]"),
+  optparse::make_option("--dir_processing",
+                        type = "character",
+                        dest = "dir_processing",
+                        default = "processing",
+                        help = "Processing directory to use [default %default]"),
   optparse::make_option("--dir_targets_cas",
                         type = "character",
                         dest = "dir_targets_cas",
@@ -19,12 +24,7 @@ option_list <- list(
                         type = "character",
                         dest = "dir_targets_store",
                         default = targets::tar_path_store(),
-                        help = "Directory to use as the {targets} data store [default %default]"),
-  optparse::make_option("--dir_processing",
-                        type = "character",
-                        dest = "dir_processing",
-                        default = "processing",
-                        help = "Processing directory to use [default %default]")
+                        help = "Directory to use as the {targets} data store [default %default]")
 )
 
 # get command line options
