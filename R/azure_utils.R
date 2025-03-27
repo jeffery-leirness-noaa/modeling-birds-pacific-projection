@@ -70,13 +70,15 @@ azure_upload <- function(key, path) {
       }
     )
   }
-  AzureStor::upload_to_url(path,
-                           dest = paste(Sys.getenv("TARGETS_ENDPOINT"),
-                                        Sys.getenv("TARGETS_CONTAINER"),
-                                        Sys.getenv("TARGETS_REPOSITORY_CAS"),
-                                        key,
-                                        sep = "/"),
-                           token = azure_auth_token())
+  AzureStor::upload_to_url(
+    path,
+    dest = paste(Sys.getenv("TARGETS_ENDPOINT"),
+                 Sys.getenv("TARGETS_CONTAINER"),
+                 paste0("_targets_", gert::git_info()$shorthand),
+                 key,
+                 sep = "/"),
+    token = azure_auth_token()
+  )
 }
 
 azure_download <- function(key, path) {
@@ -111,14 +113,13 @@ azure_download <- function(key, path) {
       }
     )
   }
-  AzureStor::download_from_url(paste(Sys.getenv("TARGETS_ENDPOINT"),
-                                     Sys.getenv("TARGETS_CONTAINER"),
-                                     Sys.getenv("TARGETS_REPOSITORY_CAS"),
-                                     key,
-                                     sep = "/"),
-                               dest = path,
-                               token = azure_auth_token(),
-                               overwrite = TRUE)
+  AzureStor::download_from_url(
+    paste(Sys.getenv("TARGETS_ENDPOINT"), Sys.getenv("TARGETS_CONTAINER"),
+          paste0("_targets_", gert::git_info()$shorthand), key, sep = "/"),
+    dest = path,
+    token = azure_auth_token(),
+    overwrite = TRUE
+  )
 }
 
 azure_exists <- function(key) {
@@ -157,6 +158,6 @@ azure_exists <- function(key) {
                               token = azure_auth_token()) |>
     AzureStor::storage_container(name = Sys.getenv("TARGETS_CONTAINER")) |>
     AzureStor::storage_file_exists(
-      fs::path(Sys.getenv("TARGETS_REPOSITORY_CAS"), key)
+      fs::path(paste0("_targets_", gert::git_info()$shorthand), key)
     )
 }

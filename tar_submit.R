@@ -6,7 +6,7 @@ job <- submit_job_rfile(
     dir_targets_cas = paste0(
       Sys.getenv(paste0("AML_DATASTORE_",
                         toupper(Sys.getenv("TARGETS_CONTAINER")))),
-      Sys.getenv("TARGETS_REPOSITORY_CAS")
+      paste0("_targets_", gert::git_info()$shorthand)
     ),
     dir_targets_store = paste0(
       Sys.getenv("AML_DATASTORE_WORKINGDIR"),
