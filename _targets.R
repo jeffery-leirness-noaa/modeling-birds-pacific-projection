@@ -36,7 +36,7 @@ targets::tar_option_set(
   retrieval = "worker",
   cue = targets::tar_cue(repository = FALSE),
   controller = crew::crew_controller_local(
-    workers = 24,
+    workers = 14,
     seconds_idle = 30,
     garbage_collection = TRUE
   )
@@ -242,7 +242,8 @@ target_model_workflows <- targets::tar_target(
                                mgcv_select = TRUE,
                                mgcv_gamma = models_to_run$mgcv_gamma
                              ))),
-  pattern = map(models_to_run),
+  pattern = map(models_to_run) |>
+    head(n = 3),
   iteration = "list"
 )
 
@@ -319,7 +320,8 @@ target_model_fit_resamples_spatial_10 <- targets::tar_target(
 values_data_prediction <- tidyr::expand_grid(
   v_esm = c("gfdl", "hadl", "ipsl"),
   v_year = 1980:2100
-)
+) |>
+  head(n = 3)
 target_data_prediction <- tarchetypes::tar_map(
   values = values_data_prediction,
   targets::tar_target(
@@ -446,14 +448,14 @@ target_data_prediction <- tarchetypes::tar_map(
 # create predictions from fitted models
 values_model_predictions <- values_data_prediction |>
   dplyr::mutate(
-    target_name = rlang::syms(glue::glue("data_prediction_{.esm}_{.year}"))
+    v_target = rlang::syms(glue::glue("data_prediction_{v_esm}_{v_year}"))
   )
 target_model_predictions <- tarchetypes::tar_map(
   values = values_model_predictions,
   targets::tar_target(
     model_predictions_daily,
     command = {
-      new_data <- prepare_data_prediction(target_name,
+      new_data <- prepare_data_prediction(v_target,
                                           label = "reanalysis",
                                           add = list(depth = data_bathy_10km,
                                                      slope = data_slope_10km))
@@ -480,21 +482,19 @@ target_model_predictions <- tarchetypes::tar_map(
     pattern = map(model_predictions_daily),
     iteration = "list"
   ),
-  names = tidyselect::all_of(c(".esm", ".year"))
+  names = tidyselect::all_of(c("v_esm", "v_year"))
 )
 
 # combine/summarize predictions (i.e., create monthly "climatologies") for each model
 values_model_predictions_climatology <- values_data_prediction |>
   dplyr::mutate(v_period = dplyr::case_match(
-    .year,
+    v_year,
     1980:1982 ~ "0_test",
     1986:2015 ~ "1_historical",
     2036:2065 ~ "2_midcentury",
     2071:2100 ~ "3_endcentury"
   )) |>
   dplyr::mutate(
-    v_esm = .esm,
-    v_year = .year,
     v_target = stringr::str_c("model_predictions_monthly_gfdl_", v_year)
   ) |>
   dplyr::group_by(v_esm, v_period) |>
@@ -522,14 +522,14 @@ values_model_predictions_climatology <- values_data_prediction |>
 #   stringr::str_flatten_comma(target_names),
 #   ")"
 # )
-v_command <- values_model_predictions_climatology$v_command
-v_pattern <- values_model_predictions_climatology$v_pattern
-target_model_predictions_climatology <- targets::tar_target_raw(
-  "model_predictions_climatology",
-  command = rlang::parse_expr(v_command),
-  pattern = rlang::parse_expr(v_pattern),
-  iteration = "list"
-)
+# v_command <- values_model_predictions_climatology$v_command
+# v_pattern <- values_model_predictions_climatology$v_pattern
+# target_model_predictions_climatology <- targets::tar_target_raw(
+#   "model_predictions_climatology",
+#   command = rlang::parse_expr(v_command),
+#   pattern = rlang::parse_expr(v_pattern),
+#   iteration = "list"
+# )
 # target_model_predictions_climatology <- tarchetypes::tar_map(
 #   values = values_model_predictions_climatology,
 #   targets::tar_target_raw(
@@ -605,11 +605,11 @@ list(
   target_species_to_model,
   target_models_to_run,
   target_model_metrics,
-  target_model_workflows
-  # target_model_fits,
-  # target_model_fit_resamples_spatial_5,
-  # target_model_fit_resamples_spatial_10,
-  # target_data_prediction,
-  # target_model_predictions,
+  target_model_workflows,
+  target_model_fits,
+  target_model_fit_resamples_spatial_5,
+  target_model_fit_resamples_spatial_10,
+  target_data_prediction,
+  target_model_predictions
   # target_model_predictions_climatology
 )
