@@ -30,6 +30,10 @@ option_list <- list(
 # get command line options
 opt <- optparse::parse_args(optparse::OptionParser(option_list = option_list))
 
+# specify directory for targets CAS repository
+opt$dir_targets_cas <- fs::path(opt$dir_processing,
+                                paste0("_targets_", gert::git_info()$shorthand))
+
 # save options to temporary file that {targets} file can access
 targets::tar_helper("_targets_helper.R", code = {
   opt <- !!opt
