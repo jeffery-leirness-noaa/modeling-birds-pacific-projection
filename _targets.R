@@ -36,7 +36,7 @@ targets::tar_option_set(
   retrieval = "worker",
   cue = targets::tar_cue(repository = FALSE),
   controller = crew::crew_controller_local(
-    workers = 14,
+    workers = 28,
     seconds_idle = 30,
     garbage_collection = TRUE
   )
@@ -242,8 +242,7 @@ target_model_workflows <- targets::tar_target(
                                mgcv_select = TRUE,
                                mgcv_gamma = models_to_run$mgcv_gamma
                              ))),
-  pattern = map(models_to_run) |>
-    head(n = 3),
+  pattern = map(models_to_run),
   iteration = "list"
 )
 
@@ -320,8 +319,7 @@ target_model_fit_resamples_spatial_10 <- targets::tar_target(
 values_data_prediction <- tidyr::expand_grid(
   v_esm = c("gfdl", "hadl", "ipsl"),
   v_year = 1980:2100
-) |>
-  head(n = 3)
+)
 target_data_prediction <- tarchetypes::tar_map(
   values = values_data_prediction,
   targets::tar_target(
@@ -449,7 +447,8 @@ target_data_prediction <- tarchetypes::tar_map(
 values_model_predictions <- values_data_prediction |>
   dplyr::mutate(
     v_target = rlang::syms(glue::glue("data_prediction_{v_esm}_{v_year}"))
-  )
+  ) |>
+  dplyr::filter(v_esm == "gfdl")
 target_model_predictions <- tarchetypes::tar_map(
   values = values_model_predictions,
   targets::tar_target(
@@ -607,9 +606,9 @@ list(
   target_model_metrics,
   target_model_workflows,
   target_model_fits,
-  target_model_fit_resamples_spatial_5,
-  target_model_fit_resamples_spatial_10,
-  target_data_prediction,
-  target_model_predictions
+  # target_model_fit_resamples_spatial_5,
+  # target_model_fit_resamples_spatial_10,
+  target_data_prediction
+  # target_model_predictions
   # target_model_predictions_climatology
 )
