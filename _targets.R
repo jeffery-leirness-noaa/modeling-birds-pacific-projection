@@ -36,7 +36,7 @@ targets::tar_option_set(
   retrieval = "worker",
   cue = targets::tar_cue(repository = FALSE),
   controller = crew::crew_controller_local(
-    workers = 28,
+    workers = 14,
     seconds_idle = 30,
     garbage_collection = TRUE
   )
@@ -681,11 +681,11 @@ list(
   target_species_to_model,
   target_models_to_run,
   target_model_metrics,
-  target_model_workflows,
-  target_model_fits,
-  target_model_fit_resamples_spatial_5,
-  target_model_fit_resamples_spatial_10,
-  target_data_prediction,
-  target_model_predictions,
-  target_model_predictions_climatology
+  # target_model_workflows,
+  # target_model_fits,
+  # target_model_fit_resamples_spatial_5,
+  # target_model_fit_resamples_spatial_10,
+  target_data_prediction
+  # target_model_predictions,
+  # target_model_predictions_climatology
 )

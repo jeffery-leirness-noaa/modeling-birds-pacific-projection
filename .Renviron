@@ -12,4 +12,4 @@ RENV_CONFIG_SYNCHRONIZED_CHECK=FALSE
 # R_AZURE_DATA_DIR=".azure"
 TARGETS_ENDPOINT="https://nccospacificsbdatastor.blob.core.windows.net"
 TARGETS_CONTAINER="processing"
-# TARGETS_REPOSITORY_CAS="_targets_develop"
+# TARGETS_REPOSITORY_CAS="_targets_main"
