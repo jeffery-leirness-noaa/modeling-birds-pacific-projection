@@ -2,7 +2,9 @@
 #must install fields
 
 # Markov random field
-
+install.packages(c('fields', 'spdep'))
+library(fields)
+library(spdep)
 
 # get data coords
 coords <- data_analysis[, c("x", "y")]

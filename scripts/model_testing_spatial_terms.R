@@ -3,7 +3,7 @@
 renv::restore(prompt = FALSE)
 
 # specify example species for testing purposes
-# species_code_testing <- "rhau"
+species_code_testing <- "rhau"
 species_code_testing <- "pfsh"
 species_code_testing <- "cagu"
 species_code_testing <- "reph"
@@ -106,6 +106,18 @@ model_fit_mgcv <- workflows::extract_fit_engine(model_fit)
 
 # explore additional model checks
 summary(model_fit_mgcv)
+
+#mrf
+png(paste0('./output/testing_spatial_term/', species_code_testing,'_mrf_gam_diagnostics.png'),
+    width=1200, height=1000, res=150)
+par(mfrow=c(2,2))
+mgcv::gam.check(model_fit_mgcv)
+dev.off()
+
+png(paste0('./output/testing_spatial_term/', species_code_testing,'_mrf_gam_results.png'),
+    width=1200, height=1000, res=150)
+mgcv::plot.gam(model_fit_mgcv, pages = 1, scale = 0)
+dev.off()
 
 
 #gp
