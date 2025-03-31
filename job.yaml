@@ -2,7 +2,7 @@ $schema: https://azuremlschemas.azureedge.net/latest/commandJob.schema.json
 display_name: run-targets-tar-make
 experiment_name: run-targets-tar-make
 description: Run targets::tar_make() on compute cluster.
-command: Rscript tar_make_cluster.R --dir_in=${{inputs.dir_in}} --dir_processing=${{outputs.dir_processing}} --dir_targets_store=${{outputs.dir_targets_store}}
+command: Rscript tar_make_cluster.R --dir_in=${{inputs.dir_in}} --dir_processing=${{outputs.dir_processing}} --dir_workspace=${{outputs.dir_workspace}}
 code: .
 environment: azureml://registries/nccos-registry-ml/environments/nccos-leirness-modeling-birds-pacific-projection/versions/21
 compute: nccos-vm-cluster-d14v2
