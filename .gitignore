@@ -7,5 +7,6 @@
 *.amltmp
 *.amltemp
 *.amlsas
+_targets_main
 public/
 resources/
