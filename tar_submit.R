@@ -10,9 +10,8 @@ job <- submit_job_rfile(
     #                     toupper(Sys.getenv("TARGETS_CONTAINER")))),
     #   paste0("_targets_", gert::git_info()$shorthand)
     # ),
-    dir_targets_store = paste0(
-      Sys.getenv("AML_DATASTORE_WORKINGDIR"),
-      targets::tar_path_store()
+    dir_workspace = paste0(
+      Sys.getenv("AML_DATASTORE_WORKINGDIR")
     )
   ),
   environment = Sys.getenv("AML_ENVIRONMENT"),

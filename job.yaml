@@ -22,11 +22,7 @@ outputs:
     mode: rw_mount
     type: uri_folder
     path: azureml://datastores/datastor_processing/paths/
-  # dir_targets_cas:
-  #   mode: rw_mount
-  #   type: uri_folder
-  #   path: azureml://datastores/datastor_processing/paths/_targets_develop/
-  dir_targets_store:
+  dir_workspace:
     mode: rw_mount
     type: uri_folder
-    path: azureml://datastores/workspaceworkingdirectory/paths/Users/jeffery.leirness/modeling-birds-pacific-projection/_targets/
+    path: azureml://datastores/workspaceworkingdirectory/paths/Users/jeffery.leirness/modeling-birds-pacific-projection/

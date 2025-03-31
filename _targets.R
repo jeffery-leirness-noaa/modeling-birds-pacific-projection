@@ -446,7 +446,8 @@ target_data_prediction <- tarchetypes::tar_map(
 # create predictions from fitted models
 values_model_predictions <- values_data_prediction |>
   dplyr::mutate(
-    v_target = rlang::syms(glue::glue("data_prediction_{v_esm}_{v_year}"))
+    v_target = glue::glue("data_prediction_{v_esm}_{v_year}") |>
+      rlang::syms()
   ) |>
   dplyr::filter(v_esm == "gfdl")
 target_model_predictions <- tarchetypes::tar_map(
@@ -485,7 +486,28 @@ target_model_predictions <- tarchetypes::tar_map(
 )
 
 # combine/summarize predictions (i.e., create monthly "climatologies") for each model
-values_model_predictions_climatology <- values_data_prediction |>
+# values_model_predictions_climatology <- values_data_prediction |>
+#   dplyr::mutate(v_period = dplyr::case_match(
+#     v_year,
+#     1980:1982 ~ "0_test",
+#     1986:2015 ~ "1_historical",
+#     2036:2065 ~ "2_midcentury",
+#     2071:2100 ~ "3_endcentury"
+#   )) |>
+#   dplyr::mutate(
+#     v_target = stringr::str_c("model_predictions_monthly_gfdl_", v_year)
+#   ) |>
+#   dplyr::group_by(v_esm, v_period) |>
+#   dplyr::summarise(v_string = stringr::str_flatten_comma(v_target)) |>
+#   dplyr::mutate(
+#     v_command = stringr::str_c("dplyr::bind_rows(", v_string, ")") |>
+#       stringr::str_c("dplyr::group_by(model_id, cell, month)",
+#                      "dplyr::summarise(.mean_pred = stats::weighted.mean(.mean_pred, w = .ndays))",
+#                      "dplyr::ungroup()",
+#                      sep = " |> "),
+#     v_pattern = stringr::str_c("map(", v_string, ")")
+#   )
+temp <- values_data_prediction |>
   dplyr::mutate(v_period = dplyr::case_match(
     v_year,
     1980:1982 ~ "0_test",
@@ -494,18 +516,73 @@ values_model_predictions_climatology <- values_data_prediction |>
     2071:2100 ~ "3_endcentury"
   )) |>
   dplyr::mutate(
-    v_target = stringr::str_c("model_predictions_monthly_gfdl_", v_year)
+    # v_target = paste("model_predictions_monthly", v_esm, v_year, sep = "_"),
+    v_target = glue::glue("model_predictions_monthly_{v_esm}_{v_year}") |>
+      rlang::syms()
   ) |>
-  dplyr::group_by(v_esm, v_period) |>
-  dplyr::summarise(v_string = stringr::str_flatten_comma(v_target)) |>
-  dplyr::mutate(
-    v_command = stringr::str_c("dplyr::bind_rows(", v_string, ")") |>
-      stringr::str_c("dplyr::group_by(model_id, cell, month)",
-                     "dplyr::summarise(.mean_pred = stats::weighted.mean(.mean_pred, w = .ndays))",
-                     "dplyr::ungroup()",
-                     sep = " |> "),
-    v_pattern = stringr::str_c("map(", v_string, ")")
-  )
+  tidyr::nest(v_data = c(v_year, v_target))
+
+# temp <- values_model_predictions |>
+#   dplyr::mutate(v_period = dplyr::case_match(
+#     v_year,
+#     1980:1982 ~ "0_test",
+#     1986:2015 ~ "1_historical",
+#     2036:2065 ~ "2_midcentury",
+#     2071:2100 ~ "3_endcentury"
+#   )) |>
+#   dplyr::mutate(
+#     v_target = paste("model_predictions_monthly", v_esm, v_year, sep = "_")
+#   ) |>
+#   tidyr::nest(v_data = c(v_year, v_target))
+
+# tar_expr <- function(.fn, ...) {
+#   x <- rlang::syms(...)
+#   rlang::call2(.fn, !!!x)
+# }
+# tar_expr("map", paste0("test", 1:4))
+# tar_expr("map", values_model_predictions_climatology$v_target)
+# tar_expr(rlang::expr(dplyr::bind_rows),
+#          values_model_predictions_climatology$v_target)
+
+# ca <- list(
+#   rlang::call2(rlang::expr(dplyr::bind_rows), !!!temp$v_data[[1]]$v_target),
+#   rlang::call2()
+# )
+#
+# var <- temp$v_data[[1]]$v_target
+# dplyr::bind_rows(!!!var) |>
+#   dplyr::group_by(model_id, cell, month) |>
+#   dplyr::summarise(.mean_pred = stats::weighted.mean(.mean_pred, w = .ndays)) |>
+#   dplyr::ungroup() |>
+#   rlang::e
+#
+# rlang::call2(
+#   rlang::expr(dplyr::summarise),
+#   rlang::call2(
+#     rlang::expr(dplyr::group_by),
+#     ,
+#     rlang::expr(model_id),
+#     rlang::expr(cell),
+#     rlang::expr(month)
+#   ),
+#   .mean_pred = stats::weighted.mean(.mean_pred, w = .ndays)
+# )
+
+target_model_predictions_climatology <- targets::tar_target_raw(
+  "model_predictions_climatology",
+  command = dplyr::bind_rows(!!!temp$v_data[[1]]$v_target) |>
+    dplyr::group_by(model_id, cell, month) |>
+    dplyr::summarise(.mean_pred = stats::weighted.mean(.mean_pred, w = .ndays)) |>
+    dplyr::ungroup() |>
+    rlang::expr(),
+  # eval() |>
+  # dplyr::group_by(model_id, cell, month) |>
+  # dplyr::summarise(.mean_pred = stats::weighted.mean(.mean_pred, w = .ndays)) |>
+  # dplyr::ungroup(),
+  pattern = map(!!!temp$v_data[[1]]$v_target) |>
+    rlang::expr(),
+  iteration = "list"
+)
 # summary_years <- 1980:1982
 # target_names <- stringr::str_c("model_predictions_monthly_gfdl_", summary_years)
 # command <- stringr::str_c(
@@ -606,9 +683,9 @@ list(
   target_model_metrics,
   target_model_workflows,
   target_model_fits,
-  # target_model_fit_resamples_spatial_5,
-  # target_model_fit_resamples_spatial_10,
-  target_data_prediction
-  # target_model_predictions
-  # target_model_predictions_climatology
+  target_model_fit_resamples_spatial_5,
+  target_model_fit_resamples_spatial_10,
+  target_data_prediction,
+  target_model_predictions,
+  target_model_predictions_climatology
 )

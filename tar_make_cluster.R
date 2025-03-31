@@ -15,6 +15,11 @@ option_list <- list(
                         dest = "dir_processing",
                         default = "processing",
                         help = "Processing directory to use [default %default]"),
+  optparse::make_option("--dir_workspace",
+                        type = "character",
+                        dest = "dir_workspace",
+                        default = "dir_workspace",
+                        help = "Workspace working directory to use [default %default]"),
   optparse::make_option("--dir_targets_cas",
                         type = "character",
                         dest = "dir_targets_cas",
@@ -33,6 +38,10 @@ opt <- optparse::parse_args(optparse::OptionParser(option_list = option_list))
 # specify directory for targets CAS repository
 opt$dir_targets_cas <- fs::path(opt$dir_processing,
                                 paste0("_targets_", gert::git_info()$shorthand))
+
+# specify directory for targets data store
+opt$dir_targets_store <- fs::path(opt$dir_workspace,
+                                  paste0("_targets_", gert::git_info()$shorthand))
 
 # save options to temporary file that {targets} file can access
 targets::tar_helper("_targets_helper.R", code = {
