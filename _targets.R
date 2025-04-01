@@ -243,7 +243,7 @@ target_model_workflows <- targets::tar_target(
                                mgcv_gamma = models_to_run$mgcv_gamma
                              ))),
   pattern = map(models_to_run) |>
-    head(n = 3),
+    slice(index = c(1:3, 61:68)),
   iteration = "list"
 )
 
