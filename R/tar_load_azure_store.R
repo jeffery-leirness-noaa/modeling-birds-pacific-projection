@@ -1,11 +1,13 @@
-tar_load_azure_store <- function(names,
-                                 branches = NULL,
-                                 meta = targets::tar_meta(targets_only = TRUE,
-                                                          store = store),
-                                 strict = TRUE,
-                                 silent = FALSE,
-                                 envir = parent.frame(),
-                                 store = targets::tar_config_get("store")) {
+tar_load_azure_store <- function(
+    names,
+    branches = NULL,
+    meta = targets::tar_meta(targets_only = TRUE,
+                             store = store),
+    strict = TRUE,
+    silent = FALSE,
+    envir = parent.frame(),
+    store = paste0("_targets_", gert::git_info()$shorthand)
+) {
   targets::tar_load_globals()
   dir_temp <- tempdir()
   names <- tar_tidyselect_eval(rlang::enquo(names), meta$name)
