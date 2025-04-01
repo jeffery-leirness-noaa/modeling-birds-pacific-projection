@@ -146,4 +146,4 @@ mgcv::plot.gam(model_fit_mgcv, pages = 1, scale = 0)
 dev.off()
 
 
-mgcv::plot.gam(model_fit_mgcv, select = 6, scale = 0)
+# mgcv::plot.gam(model_fit_mgcv, select = 6, scale = 0)

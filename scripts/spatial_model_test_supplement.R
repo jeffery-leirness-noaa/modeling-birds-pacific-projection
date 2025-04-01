@@ -7,9 +7,6 @@ library(fields)
 library(spdep)
 
 # get data coords
-coords <- data_analysis[, c("x", "y")]
-coords <- st_drop_geometry(coords)
-coords_scaled <- scale(as.matrix(coords)) #scaling prevents numerical overflow and maintains the relative spatial relationships for the MRF
 
 
 #calculate distances (fields package handles very large matrices)
