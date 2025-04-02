@@ -1,7 +1,8 @@
 targets::tar_make()
 
 targets::tar_load_globals()
-meta <- targets::tar_meta(targets_only = TRUE)
+meta <- targets::tar_meta(targets_only = TRUE,
+                          store = paste0("_targets_", gert::git_info()$shorthand))
 c(tidyselect::any_of(c("data_species_info",
                        "species_to_model",
                        "models_to_run")),
