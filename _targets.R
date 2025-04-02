@@ -36,7 +36,7 @@ targets::tar_option_set(
   retrieval = "worker",
   cue = targets::tar_cue(repository = FALSE),
   controller = crew::crew_controller_local(
-    workers = 10,
+    workers = 90,
     seconds_idle = 30,
     garbage_collection = TRUE
   )
