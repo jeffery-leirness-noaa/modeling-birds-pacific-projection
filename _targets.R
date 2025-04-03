@@ -319,7 +319,8 @@ target_model_fit_resamples_spatial_10 <- targets::tar_target(
 values_data_prediction <- tidyr::expand_grid(
   v_esm = c("gfdl", "hadl", "ipsl"),
   v_year = 1980:2100
-)
+) |>
+  dplyr::filter(v_esm == "gfdl", v_year < 2025)
 target_data_prediction <- tarchetypes::tar_map(
   values = values_data_prediction,
   targets::tar_target(
