@@ -4,9 +4,6 @@
 .Rproj.user
 .Rprofile
 data/
-data_summary_files/
 docker/
-env/
-output/
 renv/
-spatial_resampling_testing_files/
+scripts/

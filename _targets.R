@@ -7,34 +7,14 @@ if (fs::file_exists("_targets_helper.R")) {
 targets::tar_source()
 
 # set target options
-if (!exists("targets_cas_local")) {
-  targets_cas_local <- FALSE
-}
-if (targets_cas_local) {
-  repository <- targets::tar_repository_cas_local(opt$dir_targets_cas)
-} else {
-  repository <- targets::tar_repository_cas(upload = azure_upload,
-                                            download = azure_download,
-                                            exists = azure_exists)
-  token <- azure_auth_token()
-  token$refresh()
-  resources <- targets::tar_resources(
-    repository_cas = targets::tar_resources_repository_cas(
-      envvars = c(TARGETS_AUTH_TOKEN = token$credentials$access_token)
-    )
-  )
-}
 targets::tar_option_set(
-  packages = c("qs", "qs2", "rsample", "sf", "spatialsample", "terra", "workflows"),
+  packages = c("qs2", "rsample", "sf", "spatialsample", "terra", "workflows"),
   format = "qs",
-  repository = repository,
   error = "abridge",
   memory = "transient",
   garbage_collection = TRUE,
-  resources = if (targets_cas_local) NULL else resources,
   storage = "worker",
   retrieval = "worker",
-  cue = targets::tar_cue(repository = FALSE),
   controller = crew::crew_controller_local(
     workers = 1,
     seconds_idle = 30,
@@ -42,35 +22,43 @@ targets::tar_option_set(
   )
 )
 
+
 # specify targets ---------------------------------------------------------
+
 # 10-km prediction grid
+target_grid_10km_file <- targets::tar_target(
+  grid_10km_file,
+  command = fs::path(opt$dir_in, "grid-10km.tiff"),
+  format = "file"
+)
 target_grid_10km <- targets::tar_target(
   grid_10km,
-  command = create_targets_data_command("grid-10km.tiff",
-                                        local = targets_cas_local) |>
-    eval(),
-  format = define_tar_format_terra_rast("GTiff"),
-  cue = targets::tar_cue("never")
+  command = terra::rast(grid_10km_file),
+  format = define_tar_format_terra_rast("GTiff")
 )
 
 # bird species codes
+target_data_species_info_file <- targets::tar_target(
+  data_species_info_file,
+  command = fs::path(opt$dir_in, "species-data", "species-info.csv"),
+  format = "file"
+)
 target_data_species_info <- targets::tar_target(
   data_species_info,
-  command = create_targets_data_command("species-data/species-info.csv",
-                                        local = targets_cas_local) |>
-    eval() |>
-    tibble::as_tibble(.name_repair = janitor::make_clean_names),
-  cue = targets::tar_cue("never")
+  command = readr::read_csv(data_species_info_file) |>
+    tibble::as_tibble(.name_repair = janitor::make_clean_names)
 )
 
 # "raw" marine bird data
+target_data_bird_raw_file <- targets::tar_target(
+  data_bird_raw_file,
+  command = fs::path(opt$dir_in, "species-data", "segmented-data.csv"),
+  format = "file"
+)
 target_data_bird_raw <- targets::tar_target(
   data_bird_raw,
-  command = create_targets_data_command("species-data/segmented-data.csv",
-                                        local = targets_cas_local) |>
-    eval() |>
-    tibble::as_tibble(.name_repair = janitor::make_clean_names),
-  cue = targets::tar_cue("never")
+  command = readr::read_csv(data_bird_raw_file) |>
+    tibble::as_tibble(.name_repair = janitor::make_clean_names)
 )
 
 # project marine bird data onto 10-km grid and aggregate by <grid-cell, date, survey_id>
@@ -80,47 +68,57 @@ target_data_bird_10km <- targets::tar_target(
 )
 
 # 1980-2010 hindcast predictor data sampled at marine bird data locations and months
+target_data_bird_10km_wc12_file <- targets::tar_target(
+  data_bird_10km_wc12_file,
+  command = fs::path(opt$dir_in, "species-data",
+                     "segmented-data-10km-daily-wc12.csv"),
+  format = "file"
+)
 target_data_bird_10km_wc12 <- targets::tar_target(
   data_bird_10km_wc12,
-  command = create_targets_data_command("species-data/segmented-data-10km-daily-wc12.csv",
-                                        local = targets_cas_local) |>
-    eval() |>
+  command = readr::read_csv(data_bird_10km_wc12_file) |>
     tibble::as_tibble(.name_repair = janitor::make_clean_names) |>
-    prepare_data_covariates(label = "hindcast"),
-  cue = targets::tar_cue("never")
+    prepare_data_covariates(label = "hindcast")
 )
 
 # 1980-2010 reanalysis predictor data sampled at marine bird data locations and months
+target_data_bird_10km_wcra31_file <- targets::tar_target(
+  data_bird_10km_wcra31_file,
+  command = fs::path(opt$dir_in, "species-data",
+                     "segmented-data-10km-daily-wcra31.csv"),
+  format = "file"
+)
 target_data_bird_10km_wcra31 <- targets::tar_target(
   data_bird_10km_wcra31,
-  command = create_targets_data_command("species-data/segmented-data-10km-daily-wcra31.csv",
-                                        local = targets_cas_local) |>
-    eval() |>
+  command = readr::read_csv(data_bird_10km_wcra31_file) |>
     tibble::as_tibble(.name_repair = janitor::make_clean_names) |>
-    prepare_data_covariates(label = "reanalysis"),
-  cue = targets::tar_cue("never")
+    prepare_data_covariates(label = "reanalysis")
 )
 
 # 2011-24 reanalysis predictor data sampled at marine bird data locations and months
+target_data_bird_10km_wcnrt_file <- targets::tar_target(
+  data_bird_10km_wcnrt_file,
+  command = fs::path(opt$dir_in, "species-data",
+                     "segmented-data-10km-daily-wcnrt.csv"),
+  format = "file"
+)
 target_data_bird_10km_wcnrt <- targets::tar_target(
   data_bird_10km_wcnrt,
-  command = create_targets_data_command("species-data/segmented-data-10km-daily-wcnrt.csv",
-                                        local = targets_cas_local) |>
-    eval() |>
+  command = readr::read_csv(data_bird_10km_wcnrt_file) |>
     tibble::as_tibble(.name_repair = janitor::make_clean_names) |>
-    prepare_data_covariates(label = "reanalysis"),
-  cue = targets::tar_cue("never")
+    prepare_data_covariates(label = "reanalysis")
 )
 
 # mask predictor data near edges
+target_data_climate_mask_file <- targets::tar_target(
+  data_climate_mask_file,
+  command = fs::path(opt$dir_in, "environmental-data", "gfdl", "sst_daily.nc"),
+  format = "file"
+)
 target_data_climate_mask <- targets::tar_target(
   data_climate_mask,
   command = {
-    r <- create_targets_data_command(
-      fs::path("environmental-data", "gfdl", "sst_daily.nc"),
-      local = targets_cas_local
-    ) |>
-      eval() |>
+    r <- terra::rast(data_climate_mask_file) |>
       terra::subset(subset = 1)
     mat <- terra::as.matrix(r, wide = TRUE)
     mat[c(1:5, (nrow(mat) - 4):nrow(mat)), ] <- NA
@@ -130,21 +128,21 @@ target_data_climate_mask <- targets::tar_target(
     r_proj[!is.na(r_proj)] <- 1
     r_proj
   },
-  format = define_tar_format_terra_rast("GTiff"),
-  cue = targets::tar_cue("never")
+  format = define_tar_format_terra_rast("GTiff")
 )
 
 # project bathymetry layer onto 10-km grid
+target_data_bathy_10km_file <- targets::tar_target(
+  data_bathy_10km_file,
+  command = fs::path(opt$dir_in, "environmental-data",
+                     "gebco_2024_sub_ice_n90.0_s0.0_w-180.0_e-90.0.tiff"),
+  format = "file"
+)
 target_data_bathy_10km <- targets::tar_target(
   data_bathy_10km,
-  command = create_targets_data_command(
-    "environmental-data/gebco_2024_sub_ice_n90.0_s0.0_w-180.0_e-90.0.tiff",
-    local = targets_cas_local
-  ) |>
-    eval() |>
+  command = terra::rast(data_bathy_10km_file) |>
     terra::project(y = grid_10km),
-  format = define_tar_format_terra_rast("GTiff"),
-  cue = targets::tar_cue("never")
+  format = define_tar_format_terra_rast("GTiff")
 )
 
 # create slope raster layer
@@ -324,125 +322,16 @@ values_data_prediction <- tidyr::expand_grid(
 target_data_prediction <- tarchetypes::tar_map(
   values = values_data_prediction,
   targets::tar_target(
+    data_prediction_file,
+    command = fs::path(opt$dir_processing, "environmental-data", v_esm,
+                       glue::glue("{v_esm}_daily_pcs_{v_year}.qs")),
+    format = "file"
+  ),
+  targets::tar_target(
     data_prediction,
-    command = create_prediction_dataset(fs::path("environmental-data", v_esm),
-                                        v_year),
-    cue = targets::tar_cue("never")
+    command = qs2::qs_read(data_prediction_file),
   )
 )
-# target_data_prediction_year <- tarchetypes::tar_map(
-#   values = values_data_prediction_year,
-#   targets::tar_target(
-#     data_prediction,
-#     command = create_prediction_dataset(fs::path("environmental-data", esm),
-#                                         year),
-#     cue = targets::tar_cue("never")
-#   ),
-#   target_data_prediction_group_date <- tarchetypes::tar_group_by(
-#     data_prediction_group_date,
-#     command = data_prediction,
-#     date
-#   ),
-#   target_data_prediction_date <- targets::tar_target(
-#     data_prediction_date,
-#     command = data_prediction_group_date,
-#     pattern = map(data_prediction_group_date) |>
-#       head(n = 3)
-#   )
-# )
-
-# create prediction datasets (by date)
-# values_data_prediction_date <- tidyr::expand_grid(
-#   esm = c("gfdl", "hadl", "ipsl"),
-#   vdate = (lubridate::as_date("1980-01-01"):lubridate::as_date("2100-12-31")) |>
-#     lubridate::as_date()
-# ) |>
-#   dplyr::mutate(
-#     year = lubridate::year(vdate),
-#     month = lubridate::month(vdate),
-#     day = lubridate::day(vdate),
-#     target_name_in = rlang::syms(glue::glue("data_prediction_{esm}_{year}"))
-#   )
-# # target_data_prediction_date <- tarchetypes::tar_map(
-# #   values = values_data_prediction_date |>
-# #     head(n = 5),
-# #   targets::tar_target(
-# #     data_prediction,
-# #     command = dplyr::filter(target_name_in, date == vdate)
-# #   ),
-# #   names = tidyselect::all_of(c("esm", "year", "month", "day"))
-# # )
-# target_data_prediction_group <- tarchetypes::tar_group_by(
-#   data_prediction_group,
-#   command = data_prediction_gfdl_1980,
-#   date
-# )
-# target_data_prediction_date <- targets::tar_target(
-#   data_prediction_date,
-#   command = data_prediction_group,
-#   pattern = map(data_prediction_group) |>
-#     head(n = 5)
-# )
-# name_data <- paste0("data_prediction_gfdl_1980_1_", 1:3)
-# sym_data <- rlang::syms(name_data)
-# command_test <- substitute(dplyr::bind_rows(data), env = list(data = sym_data))
-# target_test <- targets::tar_target_raw(
-#   "test_combine",
-#   # command = list(data_prediction_gfdl_1980_1_1,
-#   #                data_prediction_gfdl_1980_1_2,
-#   #                data_prediction_gfdl_1980_1_3) |>
-#   #   dplyr::bind_rows()
-#   # command = paste0("data_prediction_gfdl_1980_1_", 1:3) |>
-#   #   rlang::syms() |>
-#   #   dplyr::bind_rows()
-#   # command = paste0("data_prediction_gfdl_1980_1_", 1:3) |>
-#   #   targets::tar_read_raw() |>
-#   #   dplyr::bind_rows()
-#   command = command_test
-# )
-
-# create prediction rasters from fitted models
-# values_model_predictions <- values_data_prediction |>
-#   dplyr::mutate(
-#     target = rlang::syms(glue::glue("data_prediction_{esm}_{year}"))
-#   ) |>
-#   dplyr::filter(esm == "gfdl", year == 1980)
-# # target_model_predictions <- targets::tar_target(
-# #   model_predictions,
-# #   command = {
-# #     new_data <- prepare_data_prediction(data_prediction_gfdl_2000,
-# #                                         label = "reanalysis",
-# #                                         add = list(depth = data_bathy_10km,
-# #                                                    slope = data_slope_10km))
-# #     pred <- predict(model_fits, new_data = new_data, type = "raw",
-# #                     opts = list(type = "response", exclude = "s(survey_id)")) |>
-# #       tibble::as_tibble() |>
-# #       dplyr::rename(.pred = value)
-# #   },
-# #   pattern = map(model_fits) |>
-# #     head(n = 1),
-# #   iteration = "list"
-# # )
-# target_model_predictions <- tarchetypes::tar_map(
-#   values = values_model_predictions,
-#   targets::tar_target(
-#     model_predictions,
-#     command = {
-#       new_data <- prepare_data_prediction(target,
-#                                           label = "reanalysis",
-#                                           add = list(depth = data_bathy_10km,
-#                                                      slope = data_slope_10km))
-#       pred <- predict(model_fits, new_data = new_data, type = "raw",
-#                       opts = list(type = "response", exclude = "s(survey_id)")) |>
-#         tibble::as_tibble() |>
-#         dplyr::rename(.pred = value)
-#     },
-#     pattern = map(model_fits) |>
-#       head(n = 2),
-#     iteration = "list"
-#   ),
-#   names = tidyselect::all_of()
-# )
 
 # create predictions from fitted models
 values_model_predictions <- values_data_prediction |>
@@ -486,196 +375,29 @@ target_model_predictions <- tarchetypes::tar_map(
   names = tidyselect::all_of(c("v_esm", "v_year"))
 )
 
-# combine/summarize predictions (i.e., create monthly "climatologies") for each model
-# values_model_predictions_climatology <- values_data_prediction |>
-#   dplyr::mutate(v_period = dplyr::case_match(
-#     v_year,
-#     1980:1982 ~ "0_test",
-#     1986:2015 ~ "1_historical",
-#     2036:2065 ~ "2_midcentury",
-#     2071:2100 ~ "3_endcentury"
-#   )) |>
-#   dplyr::mutate(
-#     v_target = stringr::str_c("model_predictions_monthly_gfdl_", v_year)
-#   ) |>
-#   dplyr::group_by(v_esm, v_period) |>
-#   dplyr::summarise(v_string = stringr::str_flatten_comma(v_target)) |>
-#   dplyr::mutate(
-#     v_command = stringr::str_c("dplyr::bind_rows(", v_string, ")") |>
-#       stringr::str_c("dplyr::group_by(model_id, cell, month)",
-#                      "dplyr::summarise(.mean_pred = stats::weighted.mean(.mean_pred, w = .ndays))",
-#                      "dplyr::ungroup()",
-#                      sep = " |> "),
-#     v_pattern = stringr::str_c("map(", v_string, ")")
-#   )
-temp <- values_data_prediction |>
-  dplyr::mutate(v_period = dplyr::case_match(
-    v_year,
-    1980:1982 ~ "0_test",
-    1986:2015 ~ "1_historical",
-    2036:2065 ~ "2_midcentury",
-    2071:2100 ~ "3_endcentury"
-  )) |>
-  dplyr::mutate(
-    # v_target = paste("model_predictions_monthly", v_esm, v_year, sep = "_"),
-    v_target = glue::glue("model_predictions_monthly_{v_esm}_{v_year}") |>
-      rlang::syms()
-  ) |>
-  tidyr::nest(v_data = c(v_year, v_target))
-
-# temp <- values_model_predictions |>
-#   dplyr::mutate(v_period = dplyr::case_match(
-#     v_year,
-#     1980:1982 ~ "0_test",
-#     1986:2015 ~ "1_historical",
-#     2036:2065 ~ "2_midcentury",
-#     2071:2100 ~ "3_endcentury"
-#   )) |>
-#   dplyr::mutate(
-#     v_target = paste("model_predictions_monthly", v_esm, v_year, sep = "_")
-#   ) |>
-#   tidyr::nest(v_data = c(v_year, v_target))
-
-# tar_expr <- function(.fn, ...) {
-#   x <- rlang::syms(...)
-#   rlang::call2(.fn, !!!x)
-# }
-# tar_expr("map", paste0("test", 1:4))
-# tar_expr("map", values_model_predictions_climatology$v_target)
-# tar_expr(rlang::expr(dplyr::bind_rows),
-#          values_model_predictions_climatology$v_target)
-
-# ca <- list(
-#   rlang::call2(rlang::expr(dplyr::bind_rows), !!!temp$v_data[[1]]$v_target),
-#   rlang::call2()
-# )
-#
-# var <- temp$v_data[[1]]$v_target
-# dplyr::bind_rows(!!!var) |>
-#   dplyr::group_by(model_id, cell, month) |>
-#   dplyr::summarise(.mean_pred = stats::weighted.mean(.mean_pred, w = .ndays)) |>
-#   dplyr::ungroup() |>
-#   rlang::e
-#
-# rlang::call2(
-#   rlang::expr(dplyr::summarise),
-#   rlang::call2(
-#     rlang::expr(dplyr::group_by),
-#     ,
-#     rlang::expr(model_id),
-#     rlang::expr(cell),
-#     rlang::expr(month)
-#   ),
-#   .mean_pred = stats::weighted.mean(.mean_pred, w = .ndays)
-# )
-
-target_model_predictions_climatology <- targets::tar_target_raw(
-  "model_predictions_climatology",
-  command = dplyr::bind_rows(!!!temp$v_data[[1]]$v_target) |>
-    dplyr::group_by(model_id, cell, month) |>
-    dplyr::summarise(.mean_pred = stats::weighted.mean(.mean_pred, w = .ndays)) |>
-    dplyr::ungroup() |>
-    rlang::expr(),
-  # eval() |>
-  # dplyr::group_by(model_id, cell, month) |>
-  # dplyr::summarise(.mean_pred = stats::weighted.mean(.mean_pred, w = .ndays)) |>
-  # dplyr::ungroup(),
-  pattern = map(!!!temp$v_data[[1]]$v_target) |>
-    rlang::expr(),
-  iteration = "list"
-)
-# summary_years <- 1980:1982
-# target_names <- stringr::str_c("model_predictions_monthly_gfdl_", summary_years)
-# command <- stringr::str_c(
-#   "dplyr::bind_rows(",
-#   stringr::str_flatten_comma(target_names),
-#   ") |>
-#   dplyr::group_by(model_id, cell, month) |>
-#   dplyr::summarise(.mean_pred = stats::weighted.mean(.mean_pred, w = .ndays)) |>
-#   dplyr::ungroup()"
-# )
-# pattern <- stringr::str_c(
-#   "map(",
-#   stringr::str_flatten_comma(target_names),
-#   ")"
-# )
-# v_command <- values_model_predictions_climatology$v_command
-# v_pattern <- values_model_predictions_climatology$v_pattern
-# target_model_predictions_climatology <- targets::tar_target_raw(
-#   "model_predictions_climatology",
-#   command = rlang::parse_expr(v_command),
-#   pattern = rlang::parse_expr(v_pattern),
-#   iteration = "list"
-# )
-# target_model_predictions_climatology <- tarchetypes::tar_map(
-#   values = values_model_predictions_climatology,
-#   targets::tar_target_raw(
-#     "model_predictions_climatology",
-#     command = rlang::parse_expr(v_command),
-#     pattern = rlang::parse_expr(v_pattern),
-#     iteration = "list"
-#   ),
-#   # target_model_predictions_climatology_output <- targets::tar_target(
-#   #   model_predictions_climatology_output,
-#   #   command = {
-#   #     m_id <- unique(model_predictions_climatology$model_id)
-#   #     info <- dplyr::filter(models_to_run, model_id == m_id)
-#   #
-#   #     file_name <- paste0(
-#   #       "model-predictions-",
-#   #       paste(info$code, info$covariate_prefix, info$basis, info$mgcv_gamma,
-#   #             info$spatial_effect, sep = "-"),
-#   #       glue::glue("-{v_esm}-monthly-climatology-{v_period}.tiff")) |>
-#   #       stringr::str_replace_all(pattern = '_', replacement = '-')
-#   #     file_path <- fs::path(info$code, file_name)
-#   #     r_temp <- grid_10km
-#   #     values(r_temp) <- NA
-#   #     r <- purrr::map(1:12, \(x) {
-#   #       temp <- dplyr::filter(model_predictions_climatology, month == x)
-#   #       r_i <- r_temp
-#   #       r_i[temp$cell] <- temp$.mean_pred
-#   #       names(r_i) <- month.name[x]
-#   #       r_i
-#   #     }) |>
-#   #       terra::rast()
-#   #     terra::varnames(r) <- info$code
-#   #
-#   #     if (local) {
-#   #       terra::writeRaster(r, filename = fs::path(opt$dir_output, file_path))
-#   #       fs::path(!!opt$dir_output, file_path) |>
-#   #         as.character()
-#   #     } else {
-#   #       fl <- fs::file_temp() |>
-#   #         paste0(".tiff")
-#   #       terra::writeRaster(r, filename = fl)
-#   #       AzureStor::upload_to_url(fl,
-#   #                                dest = paste(Sys.getenv("TARGETS_ENDPOINT"),
-#   #                                             "output",
-#   #                                             file_path,
-#   #                                             sep = "/"),
-#   #                                token = azure_auth_token())
-#   #     }
-#   #   },
-#   #   pattern = model_predictions_climatology,
-#   #   format = "file",
-#   #   iteration = "list"
-#   # ),
-#   names = tidyselect::all_of(c("v_esm", "v_period"))
-# )
 
 # submit targets ----------------------------------------------------------
+
 list(
-  # target_grid_10km,
-  # target_data_species_info,
-  # target_data_bird_raw,
-  # target_data_bird_10km,
-  # target_data_bird_10km_wc12,
-  # target_data_bird_10km_wcra31,
-  # target_data_bird_10km_wcnrt,
-  # target_data_climate_mask,
-  # target_data_bathy_10km,
-  # target_data_slope_10km,
-  # target_data_analysis,
+  target_grid_10km_file,
+  target_grid_10km,
+  target_data_species_info_file,
+  target_data_species_info,
+  target_data_bird_raw_file,
+  target_data_bird_raw,
+  target_data_bird_10km,
+  target_data_bird_10km_wc12_file,
+  target_data_bird_10km_wc12,
+  target_data_bird_10km_wcra31_file,
+  target_data_bird_10km_wcra31,
+  target_data_bird_10km_wcnrt_file,
+  target_data_bird_10km_wcnrt,
+  target_data_climate_mask_file,
+  target_data_climate_mask,
+  target_data_bathy_10km_file,
+  target_data_bathy_10km,
+  target_data_slope_10km,
+  target_data_analysis
   # target_data_analysis_resamples_spatial_5,
   # target_data_analysis_resamples_spatial_10,
   # target_data_analysis_resamples_bootstrap,
@@ -686,7 +408,7 @@ list(
   # target_model_fits,
   # target_model_fit_resamples_spatial_5,
   # target_model_fit_resamples_spatial_10,
-  target_data_prediction
+  # target_data_prediction,
   # target_model_predictions,
   # target_model_predictions_climatology
 )
