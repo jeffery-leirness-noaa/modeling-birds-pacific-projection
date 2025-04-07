@@ -60,16 +60,20 @@ prepare_data_analysis <- function(data_bird, data_covariates, add) {
     dplyr::relocate(geometry, .after = tidyselect::last_col())
 }
 
-prepare_data_prediction <- function(data, label, add) {
+prepare_data_prediction <- function(data, label, add, mask = NULL) {
   vars <- c("bbv_200", "curl", "ild_05", "ssh", "sst", "su", "sv", "sustr",
             "svstr", "eke", "chl_surf", "zoo_50m_int", "zoo_100m_int",
             "zoo_200m_int")
   r <- terra::rast(add)
   names(r) <- names(add)
+  if (!is.null(mask)) {
+    r <- terra::mask(r, mask)
+  }
   r_df <- terra::as.data.frame(r, xy = TRUE, cells = TRUE) |>
     tibble::as_tibble()
   dplyr::select(data, !cell) |>
     dplyr::left_join(y = r_df, by = c("x", "y")) |>
+    tidyr::drop_na() |>
     dplyr::mutate(survey_id = "CAC",
                   platform = "boat",
                   survey_area_km2_sm = 100,

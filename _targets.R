@@ -16,7 +16,7 @@ targets::tar_option_set(
   storage = "worker",
   retrieval = "worker",
   controller = crew::crew_controller_local(
-    workers = 1,
+    workers = 95,
     seconds_idle = 30,
     garbage_collection = TRUE
   )
@@ -35,6 +35,18 @@ target_grid_10km <- targets::tar_target(
   grid_10km,
   command = terra::rast(grid_10km_file),
   format = define_tar_format_terra_rast("GTiff")
+)
+
+# study area polygon
+target_study_polygon_file <- targets::tar_target(
+  study_polygon_file,
+  command = fs::path(opt$dir_in, "study-area.gpkg"),
+  format = "file"
+)
+target_study_polygon <- targets::tar_target(
+  study_polygon,
+  command = sf::read_sf(study_polygon_file) |>
+    sf::st_transform(crs = sf::st_crs(grid_10km))
 )
 
 # bird species codes
@@ -317,14 +329,13 @@ target_model_fit_resamples_spatial_10 <- targets::tar_target(
 values_data_prediction <- tidyr::expand_grid(
   v_esm = c("gfdl", "hadl", "ipsl"),
   v_year = 1980:2100
-) |>
-  dplyr::filter(v_esm == "gfdl", v_year < 2025)
+)
 target_data_prediction <- tarchetypes::tar_map(
   values = values_data_prediction,
   targets::tar_target(
     data_prediction_file,
     command = fs::path(opt$dir_processing, "environmental-data", v_esm,
-                       glue::glue("{v_esm}_daily_pcs_{v_year}.qs")),
+                       paste0(v_esm, "_daily_pcs_", v_year, ".qs")),
     format = "file"
   ),
   targets::tar_target(
@@ -339,7 +350,8 @@ values_model_predictions <- values_data_prediction |>
     v_target = glue::glue("data_prediction_{v_esm}_{v_year}") |>
       rlang::syms()
   ) |>
-  dplyr::filter(v_esm == "gfdl")
+  dplyr::filter(v_esm == "gfdl") |>
+  dplyr::slice(26:35)
 target_model_predictions <- tarchetypes::tar_map(
   values = values_model_predictions,
   targets::tar_target(
@@ -348,7 +360,8 @@ target_model_predictions <- tarchetypes::tar_map(
       new_data <- prepare_data_prediction(v_target,
                                           label = "reanalysis",
                                           add = list(depth = data_bathy_10km,
-                                                     slope = data_slope_10km))
+                                                     slope = data_slope_10km),
+                                          mask = study_polygon)
       pred <- predict(model_fits$.fit[[1]], new_data = new_data, type = "raw",
                       opts = list(type = "response", exclude = "s(survey_id)")) |>
         tibble::as_tibble() |>
@@ -381,6 +394,8 @@ target_model_predictions <- tarchetypes::tar_map(
 list(
   target_grid_10km_file,
   target_grid_10km,
+  target_study_polygon_file,
+  target_study_polygon,
   target_data_species_info_file,
   target_data_species_info,
   target_data_bird_raw_file,
@@ -397,18 +412,18 @@ list(
   target_data_bathy_10km_file,
   target_data_bathy_10km,
   target_data_slope_10km,
-  target_data_analysis
-  # target_data_analysis_resamples_spatial_5,
-  # target_data_analysis_resamples_spatial_10,
-  # target_data_analysis_resamples_bootstrap,
-  # target_species_to_model,
-  # target_models_to_run,
-  # target_model_metrics,
-  # target_model_workflows,
-  # target_model_fits,
+  target_data_analysis,
+  target_data_analysis_resamples_spatial_5,
+  target_data_analysis_resamples_spatial_10,
+  target_data_analysis_resamples_bootstrap,
+  target_species_to_model,
+  target_models_to_run,
+  target_model_metrics,
+  target_model_workflows,
+  target_model_fits,
   # target_model_fit_resamples_spatial_5,
   # target_model_fit_resamples_spatial_10,
-  # target_data_prediction,
-  # target_model_predictions,
+  target_data_prediction
+  # target_model_predictions
   # target_model_predictions_climatology
 )
