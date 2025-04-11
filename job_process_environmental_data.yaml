@@ -1,0 +1,20 @@
+$schema: https://azuremlschemas.azureedge.net/latest/commandJob.schema.json
+display_name: process-environmental-data
+experiment_name: process-environmental-data
+description: Process environmental data on compute cluster.
+command: Rscript scripts/process_environmental_data.R --dir_in=${{inputs.dir_in}} --dir_processing=${{outputs.dir_processing}} --esm="gfdl"
+code: .
+environment: azureml://registries/nccos-registry-ml/environments/nccos-leirness-modeling-birds-pacific-projection/versions/21
+compute: nccos-vm-cluster-d12
+resources:
+  instance_count: 1
+inputs:
+  dir_in:
+    mode: ro_mount
+    type: uri_folder
+    path: azureml://datastores/datastor_raw/paths/
+outputs:
+  dir_processing:
+    mode: rw_mount
+    type: uri_folder
+    path: azureml://datastores/datastor_processing/paths/

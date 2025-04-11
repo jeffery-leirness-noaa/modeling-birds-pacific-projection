@@ -5,7 +5,7 @@ description: Run targets::tar_make() on compute cluster.
 command: Rscript tar_make_cluster.R --dir_in=${{inputs.dir_in}} --dir_processing=${{outputs.dir_processing}} --dir_workspace=${{outputs.dir_workspace}}
 code: .
 environment: azureml://registries/nccos-registry-ml/environments/nccos-leirness-modeling-birds-pacific-projection/versions/21
-compute: nccos-vm-cluster-d96av4
+compute: nccos-vm-cluster-d14v2
 resources:
   instance_count: 1
 inputs:

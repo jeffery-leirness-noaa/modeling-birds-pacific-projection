@@ -69,10 +69,9 @@ prepare_data_prediction <- function(data, label, add, mask = NULL) {
   if (!is.null(mask)) {
     r <- terra::mask(r, mask)
   }
-  r_df <- terra::as.data.frame(r, xy = TRUE, cells = TRUE) |>
+  r_df <- terra::as.data.frame(r, xy = TRUE, cells = FALSE) |>
     tibble::as_tibble()
-  dplyr::select(data, !cell) |>
-    dplyr::left_join(y = r_df, by = c("x", "y")) |>
+  dplyr::left_join(data, y = r_df, by = c("x", "y")) |>
     tidyr::drop_na() |>
     dplyr::mutate(survey_id = "CAC",
                   platform = "boat",
@@ -80,7 +79,7 @@ prepare_data_prediction <- function(data, label, add, mask = NULL) {
                   survey_area_km2_lg = survey_area_km2_sm) |>
     dplyr::rename_with(.f = ~ stringr::str_c(label, .x, sep = "_"),
                        .cols = tidyselect::any_of(vars)) |>
-    dplyr::select(c(cell, date, survey_id, platform, survey_area_km2_sm,
+    dplyr::select(c(esm, cell, date, survey_id, platform, survey_area_km2_sm,
                     survey_area_km2_lg, tidyselect::starts_with(label),
                     tidyselect::all_of(names(add)), x, y))
 }
