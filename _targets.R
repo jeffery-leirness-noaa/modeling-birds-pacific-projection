@@ -16,7 +16,7 @@ targets::tar_option_set(
   storage = "worker",
   retrieval = "worker",
   controller = crew::crew_controller_local(
-    workers = 14,
+    workers = 85,
     seconds_idle = 30,
     garbage_collection = TRUE
   )
@@ -195,8 +195,7 @@ target_species_to_model <- targets::tar_target(
   species_to_model,
   command = create_species_to_model_df(data_analysis,
                                        species_info_df = data_species_info,
-                                       threshold = 50) |>
-    dplyr::filter(stringr::str_starts(code, pattern = "grp_", negate = TRUE))
+                                       threshold = 50)
 )
 
 # create data frame of models to run
@@ -204,8 +203,7 @@ target_models_to_run <- targets::tar_target(
   models_to_run,
   command = create_models_to_run_df(species_to_model) |>
     tibble::rowid_to_column(var = "model_id") |>
-    dplyr::filter(!spatial_effect,
-                  stringr::str_starts(code, pattern = "grp_", negate = TRUE))
+    dplyr::filter(!spatial_effect)
 )
 
 # define model metrics
@@ -319,8 +317,7 @@ values_model_predictions <- values_data_prediction |>
   dplyr::mutate(
     v_target = glue::glue("data_prediction_{v_esm}_{v_year}") |>
       rlang::syms()
-  ) |>
-  head(n = 2)
+  )
 target_model_predictions <- tarchetypes::tar_map(
   values = values_model_predictions,
   targets::tar_target(
@@ -332,8 +329,7 @@ target_model_predictions <- tarchetypes::tar_map(
                                           slope = data_slope_10km),
                                mask = study_polygon) |>
       dplyr::mutate(model_id = model_fits$model_id, .before = 1),
-    pattern = map(model_fits) |>
-      slice(index = c(57)),
+    pattern = map(model_fits),
     iteration = "list"
   ),
   targets::tar_target(
@@ -352,51 +348,24 @@ target_model_predictions <- tarchetypes::tar_map(
 )
 
 # combine/summarize predictions (i.e., create monthly "climatologies") for each model
-values_model_predictions_climatology <- values_data_prediction |>
-  dplyr::mutate(v_period = dplyr::case_match(
-    v_year,
-    1980:1981 ~ "0_test",
-    1985:2014 ~ "1_historical",
-    2035:2064 ~ "2_midcentury",
-    2070:2099 ~ "3_endcentury"
-  )) |>
-  tidyr::drop_na() |>
+target_model_predictions_climatology <- values_data_prediction |>
   dplyr::mutate(
-    v_target = glue::glue("model_predictions_monthly_{v_esm}_{v_year}") |>
-      rlang::syms()
+    v_period = dplyr::case_match(v_year,
+                                 1980:1981 ~ "0_test",
+                                 1985:2014 ~ "1_historical",
+                                 2035:2064 ~ "2_midcentury",
+                                 2070:2099 ~ "3_endcentury"),
+    v_target = glue::glue("model_predictions_monthly_{v_esm}_{v_year}")
   ) |>
-  tidyr::nest(v_data = c(v_year, v_target)) |>
-  head(n = 1)
-target_model_predictions_climatology <- tarchetypes::tar_map(
-  values = values_model_predictions_climatology,
-  targets::tar_target_raw(
-    "model_predictions_climatology",
-    command = dplyr::bind_rows(!!!v_data[[1]]$v_target) |>
-      dplyr::group_by(model_id, esm, cell, x, y, month) |>
-      dplyr::summarise(.mean_pred = stats::weighted.mean(.mean_pred, w = .ndays)) |>
-      dplyr::ungroup() |>
-      dplyr::mutate(period = v_period, .after = esm) |>
-      rlang::expr(),
-    pattern = map(!!!v_data[[1]]$v_target) |>
-      rlang::expr(),
-    iteration = "list"
-  ),
-  names = tidyselect::all_of(c("v_esm", "v_period"))
-)
-
-# target_model_predictions_climatology <- targets::tar_target_raw(
-#   "model_predictions_climatology",
-#   command = dplyr::bind_rows(!!!values_model_predictions_climatology$v_data[[1]]$v_target) |>
-#     dplyr::group_by(model_id, esm, cell, x, y, month) |>
-#     dplyr::summarise(.mean_pred = stats::weighted.mean(.mean_pred, w = .ndays)) |>
-#     dplyr::ungroup() |>
-#     dplyr::mutate(summary_period = !!!values_model_predictions_climatology$v_period,
-#                   .after = esm) |>
-#     rlang::expr(),
-#   pattern = map(!!!values_model_predictions_climatology$v_data[[1]]$v_target) |>
-#     rlang::expr(),
-#   iteration = "list"
-# )
+  tidyr::drop_na() |>
+  tidyr::nest(.by = c(v_esm, v_period)) |>
+  dplyr::group_split(v_esm, v_period) |>
+  purrr::map(.f = \(x) create_target_model_predictions_climatology(
+    rlang::syms(x$data[[1]]$v_target),
+    esm = x$v_esm,
+    period = x$v_period)
+  ) |>
+  purrr::pluck(1)
 
 # save summarized predictions as
 target_model_predictions_climatology_output <- targets::tar_target(
@@ -464,7 +433,7 @@ list(
   target_model_fits,
   # target_model_fit_resamples_spatial_5,
   # target_model_fit_resamples_spatial_10,
-  target_model_predictions,
-  target_model_predictions_climatology
+  target_model_predictions
+  # target_model_predictions_climatology
   # target_model_predictions_climatology_output
 )
