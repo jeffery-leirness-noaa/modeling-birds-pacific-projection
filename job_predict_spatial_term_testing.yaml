@@ -1,0 +1,20 @@
+$schema: https://azuremlschemas.azureedge.net/latest/commandJob.schema.json
+display_name: predict-spatial-term-testing
+experiment_name: predict-spatial-term-testing
+description: Create predictions from models testing spatial terms on compute cluster.
+command: Rscript scripts/predict_spatial_term_testing.R --dir_in=${{inputs.dir_in}} --dir_processing=${{outputs.dir_processing}} --species="cagu" --spatial_type="mrf"
+code: .
+environment: azureml://registries/nccos-registry-ml/environments/nccos-leirness-modeling-birds-pacific-projection/versions/21
+compute: nccos-vm-cluster-d14v2
+resources:
+  instance_count: 1
+inputs:
+  dir_in:
+    mode: ro_mount
+    type: uri_folder
+    path: azureml://datastores/datastor_raw/paths/
+outputs:
+  dir_processing:
+    mode: rw_mount
+    type: uri_folder
+    path: azureml://datastores/datastor_processing/paths/

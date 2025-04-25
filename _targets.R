@@ -16,7 +16,8 @@ targets::tar_option_set(
   storage = "worker",
   retrieval = "worker",
   controller = crew::crew_controller_local(
-    workers = 85,
+    workers = 60,
+    # workers = 80,
     seconds_idle = 30,
     garbage_collection = TRUE
   )
@@ -317,7 +318,9 @@ values_model_predictions <- values_data_prediction |>
   dplyr::mutate(
     v_target = glue::glue("data_prediction_{v_esm}_{v_year}") |>
       rlang::syms()
-  )
+  ) |>
+  dplyr::filter(v_esm == "gfdl",
+                v_year %in% 1980:2017)
 target_model_predictions <- tarchetypes::tar_map(
   values = values_model_predictions,
   targets::tar_target(
