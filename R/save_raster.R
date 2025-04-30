@@ -1,3 +1,15 @@
+#' Save Model Predictions as a Raster
+#'
+#' This function converts model prediction data to a SpatRaster object and saves it
+#' as a GeoTIFF file, with appropriate naming based on model parameters.
+#'
+#' @param data Data frame. Model prediction data.
+#' @param model_info Data frame. Information about the model.
+#' @param grid SpatRaster. The spatial grid for predictions.
+#' @param crop Spatial object. Optional area to crop the output to.
+#' @param dir_out Character string. Directory to save the output file.
+#'
+#' @return Character string. Path to the saved file.
 save_raster <- function(data, model_info, grid, crop = NULL, dir_out) {
   info <- dplyr::filter(model_info, model_id == unique(data$model_id))
 

@@ -1,3 +1,21 @@
+#' Define a Model Recipe for Species Distribution Models
+#'
+#' This function creates a model preprocessing recipe for species distribution modeling.
+#' It handles variable transformations, normalization, and preprocessing steps.
+#'
+#' @param model_formula Formula. The model formula.
+#' @param data Data frame. The data to be used for modeling.
+#' @param species_size_class Character string. Size class of the species ("sm" or "lg").
+#'
+#' @return A recipe object.
+#'
+#' @examples
+#' # Define a recipe for Black-footed Albatross
+#' recipe <- define_model_recipe(
+#'   model_formula = bfal ~ offset(survey_area_km2) + platform + s(date_doy, bs = "cc"),
+#'   data = data_analysis,
+#'   species_size_class = "lg"
+#' )
 define_model_recipe <- function(model_formula, data, species_size_class) {
 
   survey_area_var <- stringr::str_c("survey_area_km2_", species_size_class)
@@ -30,6 +48,16 @@ define_model_recipe <- function(model_formula, data, species_size_class) {
 
 }
 
+#' Define a GAM Model Specification
+#'
+#' This function creates a model specification for a Generalized Additive Model (GAM)
+#' using the mgcv engine.
+#'
+#' @param mgcv_select Logical. Whether to use automatic feature selection. Default is FALSE.
+#' @param mgcv_gamma Numeric or NULL. Penalty for the degrees of freedom in the model.
+#'                  Default is NULL.
+#'
+#' @return A model specification object.
 define_model_spec <- function(mgcv_select = FALSE, mgcv_gamma = NULL) {
   gam_model <- parsnip::gen_additive_mod(
     select_features = !!mgcv_select,
@@ -43,6 +71,29 @@ define_model_spec <- function(mgcv_select = FALSE, mgcv_gamma = NULL) {
     parsnip::set_mode("regression")
 }
 
+#' Define a Model Workflow
+#'
+#' This function creates a tidymodels workflow that combines a preprocessing recipe
+#' and a model specification.
+#'
+#' @param model_formula Formula. The model formula.
+#' @param data Data frame. The data to be used for modeling.
+#' @param species_size_class Character string. Size class of the species ("sm" or "lg").
+#' @param mgcv_select Logical. Whether to use automatic feature selection. Default is FALSE.
+#' @param mgcv_gamma Numeric or NULL. Penalty for the degrees of freedom in the model.
+#'                  Default is NULL.
+#'
+#' @return A workflow object.
+#'
+#' @examples
+#' # Define a workflow for a model
+#' workflow <- define_model_workflow(
+#'   model_formula = rhau ~ offset(survey_area_km2) + platform + s(date_doy, bs = "cc"),
+#'   data = data_analysis,
+#'   species_size_class = "lg",
+#'   mgcv_select = TRUE,
+#'   mgcv_gamma = 1.4
+#' )
 define_model_workflow <- function(model_formula, data, species_size_class,
                                   mgcv_select = FALSE, mgcv_gamma = NULL) {
   model_recipe <- define_model_recipe(model_formula = model_formula,
@@ -55,7 +106,15 @@ define_model_workflow <- function(model_formula, data, species_size_class,
     workflows::add_model(model_spec, formula = model_formula)
 }
 
+#' Plot Marginal Effects for a GAM Model
+#'
+#' This function creates plots showing the marginal effects for terms in a
+#' Generalized Additive Model (GAM).
+#'
+#' @param model A fitted GAM model object.
+#' @param se Logical. Whether to show standard errors. Default is FALSE.
+#'
+#' @return A plot showing the marginal effects of model terms.
 plot_marginal_effects <- function(model, se = FALSE) {
-  # marginal effects plots (i.e., term plots) with standard errors
   mgcv::plot.gam(model, rug = TRUE, se = se, pages = 1, scale = 0, shade = TRUE)
 }

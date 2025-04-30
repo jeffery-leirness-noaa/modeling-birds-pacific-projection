@@ -1,3 +1,15 @@
+#' Create a Model Formula for GAM Models
+#'
+#' This function creates a formula for a Generalized Additive Model (GAM) based on
+#' the specified parameters. It allows for different types of covariates (hindcast or reanalysis),
+#' different basis functions, and optional spatial effects.
+#'
+#' @param lhs Character string. The left-hand side of the formula (dependent variable).
+#' @param type Character string. Type of covariate to use, either "hindcast" or "reanalysis".
+#' @param bs Character string. The basis function to use for smooths. Default is "tp" (thin plate regression spline).
+#' @param spatial_effect Logical. Whether to include a spatial smooth term (x, y). Default is FALSE.
+#'
+#' @return A character string representing the formula.
 create_model_formula_mgcv <- function(lhs,
                                       type,
                                       bs = "tp",

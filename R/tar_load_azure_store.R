@@ -1,3 +1,15 @@
+#' Load a Target from Azure Storage
+#'
+#' This function loads a target object from Azure Storage, using the targets package
+#' storage mechanism configured for Azure.
+#'
+#' @param name Character string. The name of the target to load.
+#'
+#' @return The target object.
+#'
+#' @examples
+#' # Load the species information data target
+#' data_species_info <- tar_load_azure_store("data_species_info")
 tar_load_azure_store <- function(
     names,
     branches = NULL,

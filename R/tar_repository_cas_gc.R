@@ -1,4 +1,13 @@
-# targets azure garbage collection
+#' Clean Up the Targets Content-Addressable Storage Repository
+#'
+#' This function performs garbage collection on the targets content-addressable storage 
+#' repository, removing objects that are no longer referenced.
+#'
+#' @return Invisible. The function is called for its side effects.
+#'
+#' @examples
+#' # Clean up the repository
+#' tar_repository_cas_gc()
 tar_repository_cas_gc <- function(path = targets::tar_path_store(),
                                   store = targets::tar_config_get("store")) {
 

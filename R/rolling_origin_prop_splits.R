@@ -1,3 +1,12 @@
+#' Create Rolling Origin Proportional Splits
+#'
+#' This function creates time-based resampling splits for model validation,
+#' using a proportional rolling origin approach.
+#'
+#' @param data Data frame. The data to split.
+#' @param prop Numeric. The proportion of data to use for each split.
+#'
+#' @return An {rsample} resampling object with the splits.
 rolling_origin_prop_splits <- function(data, prop) {
   splits <- data |>
     dplyr::mutate(group = cut(1:nrow(data) / nrow(data),

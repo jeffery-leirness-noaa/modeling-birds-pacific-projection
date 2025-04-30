@@ -1,3 +1,8 @@
+#' Transfer Files to Azure Blob Storage
+#'
+#' This function transfers files to Azure Blob Storage.
+#'
+#' @return Invisible. The function is called for its side effects.
 transfer_files_blob <- function(container_name, local_folder, cloud_folder, type, account_url = "https://nccospacificsbdatastor.blob.core.windows.net") {
   file_transfer <- reticulate::import_from_path("file_transfer")
   ftc <- file_transfer$FileTransferClient(account_url,

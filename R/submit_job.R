@@ -5,6 +5,36 @@ reticulate::py_require(
   action = "set"
 )
 
+#' Submit a Job to Azure Machine Learning
+#'
+#' This function submits a command job to Azure Machine Learning.
+#'
+#' @param code Character string. Path to the code directory. Default is ".".
+#' @param command Character string. The command to run.
+#' @param inputs List or NULL. Input data for the job.
+#' @param outputs List or NULL. Output data configuration for the job.
+#' @param environment Character string or NULL. The environment to use.
+#' @param compute Character string. The compute target to use.
+#' @param experiment_name Character string. The name of the experiment.
+#' @param display_name Character string. The display name for the job.
+#' @param description Character string. Description of the job.
+#' @param subscription_id Character string or NULL. Azure subscription ID.
+#' @param resource_group Character string or NULL. Azure resource group.
+#' @param workspace_name Character string or NULL. Azure ML workspace name.
+#'
+#' @return The submitted job object.
+#'
+#' @examples
+#' # Submit a job to run an R script
+#' job <- submit_job(
+#'   command = "Rscript process_data.R --input ${{inputs.data}} --output ${{outputs.results}}",
+#'   inputs = list(data = "azureml://datastores/mydata/paths/input"),
+#'   outputs = list(results = "azureml://datastores/mydata/paths/output"),
+#'   compute = "cpu-cluster",
+#'   experiment_name = "data-processing",
+#'   display_name = "Process 2023 Data",
+#'   description = "Process environmental data for 2023"
+#' )
 submit_job <- function(code = ".", command, inputs = NULL, outputs = NULL,
                        environment = NULL, compute, experiment_name,
                        display_name, description, subscription_id = NULL,
@@ -74,6 +104,38 @@ submit_job <- function(code = ".", command, inputs = NULL, outputs = NULL,
 
 }
 
+#' Submit an R File Job to Azure Machine Learning
+#'
+#' This function submits a job to run an R script file on Azure Machine Learning,
+#' with automatic handling of input and output arguments.
+#'
+#' @param rfile Character string. The R script file to run.
+#' @param additional_args Character string or NULL. Additional command line arguments.
+#' @param inputs List or NULL. Input data for the job.
+#' @param outputs List or NULL. Output data configuration for the job.
+#' @param environment Character string or NULL. The environment to use.
+#' @param compute Character string. The compute target to use.
+#' @param experiment_name Character string. The name of the experiment.
+#' @param display_name Character string. The display name for the job.
+#' @param description Character string. Description of the job.
+#' @param subscription_id Character string or NULL. Azure subscription ID.
+#' @param resource_group Character string or NULL. Azure resource group.
+#' @param workspace_name Character string or NULL. Azure ML workspace name.
+#'
+#' @return The submitted job object.
+#'
+#' @examples
+#' # Submit an R script job
+#' job <- submit_job_rfile(
+#'   rfile = "process_environmental_data.R",
+#'   additional_args = "--verbose",
+#'   inputs = list(data = "azureml://datastores/mydata/paths/input"),
+#'   outputs = list(results = "azureml://datastores/mydata/paths/output"),
+#'   compute = "cpu-cluster",
+#'   experiment_name = "env-data-processing",
+#'   display_name = "Process 2023 Environmental Data",
+#'   description = "Process daily environmental data for 2023"
+#' )
 submit_job_rfile <- function(rfile, additional_args = NULL,
                              inputs = NULL, outputs = NULL,
                              environment = NULL, compute, experiment_name,
