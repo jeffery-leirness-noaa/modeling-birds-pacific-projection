@@ -13,10 +13,10 @@
 save_raster <- function(data, model_info, grid, crop = NULL, dir_out) {
   info <- dplyr::filter(model_info, model_id == unique(data$model_id))
 
-  r_temp <- grid_10km
-  values(r_temp) <- NA
+  r_temp <- grid
+  terra::values(r_temp) <- NA
   r <- purrr::map(1:12, \(x) {
-    temp <- dplyr::filter(data, month == x)
+    temp <- dplyr::filter(data, month == !!x)
     r_i <- r_temp
     terra::set.values(r_i, cells = temp$cell, values = temp$.mean_pred)
     names(r_i) <- month.name[x]
@@ -33,10 +33,11 @@ save_raster <- function(data, model_info, grid, crop = NULL, dir_out) {
                      unique(data$esm), "monthly-climatology",
                      unique(data$period), sep = "-") |>
     stringr::str_replace_all(pattern = '_', replacement = '-')
-  file_path <- fs::path(info$code, file_name) |>
+  file_path <- fs::path(dir_out, info$code, file_name) |>
     fs::path_ext_set(ext = ".tiff")
 
-  terra::writeRaster(r, filename = fs::path(dir_out, file_path))
-  fs::path(dir_out, file_path) |>
-    as.character()
+  fs::path_dir(file_path) |>
+    fs::dir_create()
+  terra::writeRaster(r, filename = file_path, overwrite = TRUE)
+  as.character(file_path)
 }

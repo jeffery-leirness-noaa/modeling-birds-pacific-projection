@@ -4,18 +4,18 @@
 #' and calculates monthly climatologies.
 #'
 #' @param .targets List of targets. The model prediction targets to combine.
-#' @param esm Character string. The Earth System Model used for predictions.
-#' @param period Character string. The time period of the climatology.
+#' @param v_esm Character string. The Earth System Model used for predictions.
+#' @param v_period Character string. The time period of the climatology.
 #'
 #' @return A targets pipeline target object.
-create_target_model_predictions_climatology  <- function(.targets, esm, period) {
+create_target_model_predictions_climatology  <- function(.targets, v_esm, v_period) {
   targets::tar_target_raw(
-    glue::glue("model_predictions_climatology_{esm}_{period}"),
+    glue::glue("model_predictions_climatology_{v_esm}_{v_period}"),
     command = dplyr::bind_rows(!!!.targets) |>
       dplyr::group_by(model_id, esm, cell, x, y, month) |>
       dplyr::summarise(.mean_pred = stats::weighted.mean(.mean_pred, w = .ndays)) |>
       dplyr::ungroup() |>
-      dplyr::mutate(period = !!period, .after = esm) |>
+      dplyr::mutate(period = !!v_period, .after = esm) |>
       rlang::expr(),
     pattern = map(!!!.targets) |>
       rlang::expr(),
