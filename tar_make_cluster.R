@@ -44,5 +44,6 @@ targets::tar_helper("_targets_helper.R", code = {
 targets::tar_config_set(store = opt$dir_targets_store)
 
 # run targets
+# targets::tar_prune_list()
 # targets::tar_prune()
 targets::tar_make()

@@ -16,8 +16,9 @@ targets::tar_option_set(
   storage = "worker",
   retrieval = "worker",
   controller = crew::crew_controller_local(
-    workers = 60,
-    # workers = 80,
+    # workers = 14,
+    # workers = 60,  # use when running target_model_predictions
+    workers = 80,  # use when not running target_model_predictions
     seconds_idle = 30,
     garbage_collection = TRUE
   )
@@ -39,6 +40,46 @@ target_grid_10km <- targets::tar_target(
 target_study_polygon <- targets::tar_target(
   study_polygon,
   command = fs::path(opt$dir_in, "study-area.gpkg") |>
+    sf::read_sf() |>
+    sf::st_transform(crs = sf::st_crs(grid_10km)),
+  cue = targets::tar_cue(depend = FALSE)
+)
+
+# shoreline polygon
+target_shoreline_polygon <- targets::tar_target(
+  shoreline_polygon,
+  command = {
+    land <- fs::path(opt$dir_in, "GSHHS_i_L1.shp") |>
+      sf::read_sf()
+    clip <- terra::ext(grid_10km) |>
+      terra::as.polygons(crs = terra::crs(grid_10km)) |>
+      sf::st_as_sf() |>
+      sf::st_buffer(dist = 1e+06) |>
+      sf::st_transform(crs = sf::st_crs(land))
+    sf::sf_use_s2(FALSE)
+    sf::st_intersection(land, clip) |>
+      sf::st_transform(crs = sf::st_crs(grid_10km))
+  },
+  cue = targets::tar_cue(depend = FALSE)
+)
+
+# country boundary lines
+target_country_lines <- targets::tar_target(
+  country_lines,
+  command = fs::path(opt$dir_in, "canada_us_border_wgs84.shp") |>
+    sf::read_sf() |>
+    sf::st_transform(crs = sf::st_crs(grid_10km)),
+  # command = fs::path(opt$dir_in, "ne_10m_admin_0_boundary_lines_land.shp") |>
+  #   sf::read_sf() |>
+  #   sf::st_transform(crs = sf::st_crs(grid_10km)) |>
+  #   dplyr::filter(TYPE == "Land"),
+  cue = targets::tar_cue(depend = FALSE)
+)
+
+# state boundary lines
+target_state_lines <- targets::tar_target(
+  state_lines,
+  command = fs::path(opt$dir_in, "state_boundaries_no_coastlines_wgs84.shp") |>
     sf::read_sf() |>
     sf::st_transform(crs = sf::st_crs(grid_10km)),
   cue = targets::tar_cue(depend = FALSE)
@@ -203,8 +244,7 @@ target_species_to_model <- targets::tar_target(
 target_models_to_run <- targets::tar_target(
   models_to_run,
   command = create_models_to_run_df(species_to_model) |>
-    tibble::rowid_to_column(var = "model_id") |>
-    dplyr::filter(!spatial_effect)
+    tibble::rowid_to_column(var = "model_id")
 )
 
 # define model metrics
@@ -221,6 +261,7 @@ target_model_metrics <- targets::tar_target(
                                   yardstick::msd,
                                   yardstick::poisson_log_loss,
                                   yardstick::rmse,
+                                  rmsle,
                                   yardstick::rpd,
                                   yardstick::rpiq,
                                   yardstick::rsq,
@@ -264,6 +305,32 @@ target_model_fits <- targets::tar_target(
                                            data = data_analysis)
                            )),
   pattern = map(model_workflows),
+  iteration = "list"
+)
+
+# create marginal effects plots for fitted models
+target_model_fit_plots <- targets::tar_target(
+  model_fit_plots,
+  command = create_marginal_effects_plot(
+    model = model_fits,
+    model_info = models_to_run,
+    se = FALSE,
+    dir_out = fs::path(opt$dir_processing, "output")
+  ),
+  pattern = map(model_fits),
+  format = "file",
+  iteration = "list"
+)
+target_model_fit_plots_se <- targets::tar_target(
+  model_fit_plots_se,
+  command = create_marginal_effects_plot(
+    model = model_fits,
+    model_info = models_to_run,
+    se = TRUE,
+    dir_out = fs::path(opt$dir_processing, "output")
+  ),
+  pattern = map(model_fits),
+  format = "file",
   iteration = "list"
 )
 
@@ -351,59 +418,123 @@ target_model_predictions <- tarchetypes::tar_map(
 )
 
 # combine/summarize predictions (i.e., create monthly "climatologies") for each model
-target_model_predictions_climatology <- values_data_prediction |>
-  dplyr::mutate(
-    v_period = dplyr::case_match(v_year,
-                                 1980:1981 ~ "0_test",
-                                 1985:2014 ~ "1_historical",
-                                 2035:2064 ~ "2_midcentury",
-                                 2070:2099 ~ "3_endcentury"),
-    v_target = glue::glue("model_predictions_monthly_{v_esm}_{v_year}")
-  ) |>
-  tidyr::drop_na() |>
-  tidyr::nest(.by = c(v_esm, v_period)) |>
-  dplyr::group_split(v_esm, v_period) |>
-  purrr::map(.f = \(x) create_target_model_predictions_climatology(
-    rlang::syms(x$data[[1]]$v_target),
-    esm = x$v_esm,
-    period = x$v_period)
-  ) |>
-  purrr::pluck(1)
+# target_model_predictions_climatology <- values_model_predictions |>
+#   dplyr::mutate(
+#     v_period = dplyr::case_match(v_year,
+#                                  1985:1986 ~ "0_test",
+#                                  # 1985:2014 ~ "1_historical",
+#                                  2035:2064 ~ "2_midcentury",
+#                                  2070:2099 ~ "3_endcentury"),
+#     v_target = glue::glue("model_predictions_monthly_{v_esm}_{v_year}")
+#   ) |>
+#   tidyr::drop_na() |>
+#   tidyr::nest(.by = c(v_esm, v_period)) |>
+#   dplyr::group_split(v_esm, v_period) |>
+#   purrr::map(.f = \(x) create_target_model_predictions_climatology(
+#     rlang::syms(x$data[[1]]$v_target),
+#     v_esm = x$v_esm,
+#     v_period = x$v_period)
+#   )
+target_model_predictions_climatology_gfdl_1_historical <- targets::tar_target(
+  model_predictions_climatology_gfdl_1_historical,
+  command = dplyr::bind_rows(model_predictions_monthly_gfdl_1985,
+                             model_predictions_monthly_gfdl_1986,
+                             model_predictions_monthly_gfdl_1987,
+                             model_predictions_monthly_gfdl_1988,
+                             model_predictions_monthly_gfdl_1989,
+                             model_predictions_monthly_gfdl_1990,
+                             model_predictions_monthly_gfdl_1991,
+                             model_predictions_monthly_gfdl_1992,
+                             model_predictions_monthly_gfdl_1993,
+                             model_predictions_monthly_gfdl_1994,
+                             model_predictions_monthly_gfdl_1995,
+                             model_predictions_monthly_gfdl_1996,
+                             model_predictions_monthly_gfdl_1997,
+                             model_predictions_monthly_gfdl_1998,
+                             model_predictions_monthly_gfdl_1999,
+                             model_predictions_monthly_gfdl_2000,
+                             model_predictions_monthly_gfdl_2001,
+                             model_predictions_monthly_gfdl_2002,
+                             model_predictions_monthly_gfdl_2003,
+                             model_predictions_monthly_gfdl_2004,
+                             model_predictions_monthly_gfdl_2005,
+                             model_predictions_monthly_gfdl_2006,
+                             model_predictions_monthly_gfdl_2007,
+                             model_predictions_monthly_gfdl_2008,
+                             model_predictions_monthly_gfdl_2009,
+                             model_predictions_monthly_gfdl_2010,
+                             model_predictions_monthly_gfdl_2011,
+                             model_predictions_monthly_gfdl_2012,
+                             model_predictions_monthly_gfdl_2013,
+                             model_predictions_monthly_gfdl_2014) |>
+    dplyr::group_by(model_id, esm, cell, x, y, month) |>
+    dplyr::summarise(.mean_pred = stats::weighted.mean(.mean_pred, w = .ndays)) |>
+    dplyr::ungroup() |>
+    dplyr::mutate(period = "1_historical", .after = esm),
+  pattern = map(model_predictions_monthly_gfdl_1985,
+                model_predictions_monthly_gfdl_1986,
+                model_predictions_monthly_gfdl_1987,
+                model_predictions_monthly_gfdl_1988,
+                model_predictions_monthly_gfdl_1989,
+                model_predictions_monthly_gfdl_1990,
+                model_predictions_monthly_gfdl_1991,
+                model_predictions_monthly_gfdl_1992,
+                model_predictions_monthly_gfdl_1993,
+                model_predictions_monthly_gfdl_1994,
+                model_predictions_monthly_gfdl_1995,
+                model_predictions_monthly_gfdl_1996,
+                model_predictions_monthly_gfdl_1997,
+                model_predictions_monthly_gfdl_1998,
+                model_predictions_monthly_gfdl_1999,
+                model_predictions_monthly_gfdl_2000,
+                model_predictions_monthly_gfdl_2001,
+                model_predictions_monthly_gfdl_2002,
+                model_predictions_monthly_gfdl_2003,
+                model_predictions_monthly_gfdl_2004,
+                model_predictions_monthly_gfdl_2005,
+                model_predictions_monthly_gfdl_2006,
+                model_predictions_monthly_gfdl_2007,
+                model_predictions_monthly_gfdl_2008,
+                model_predictions_monthly_gfdl_2009,
+                model_predictions_monthly_gfdl_2010,
+                model_predictions_monthly_gfdl_2011,
+                model_predictions_monthly_gfdl_2012,
+                model_predictions_monthly_gfdl_2013,
+                model_predictions_monthly_gfdl_2014),
+  iteration = "list"
+)
 
-# save summarized predictions as
-target_model_predictions_climatology_output <- targets::tar_target(
-  model_predictions_climatology_output,
+# save summarized predictions as raster GeoTIFFs
+target_model_predictions_climatology_gfdl_1_historical_rasters <- targets::tar_target(
+  model_predictions_climatology_gfdl_1_historical_rasters,
   command = {
-    save_raster(model_predictions_climatology, model_info = models_to_run,
-                grid = grid_10km, crop = study_polygon,
-                dir_out = opt$dir_processing)
-    # m_id <- unique(model_predictions_climatology$model_id)
-    # info <- dplyr::filter(models_to_run, model_id == m_id)
-    #
-    # file_name <- paste0(
-    #   "model-predictions-",
-    #   paste(info$code, info$covariate_prefix, info$basis, info$mgcv_gamma,
-    #         info$spatial_effect, sep = "-"),
-    #   glue::glue("-{v_esm}-monthly-climatology-{v_period}.tiff")) |>
-    #   stringr::str_replace_all(pattern = '_', replacement = '-')
-    # file_path <- fs::path(info$code, file_name)
-    # r_temp <- grid_10km
-    # values(r_temp) <- NA
-    # r <- purrr::map(1:12, \(x) {
-    #   temp <- dplyr::filter(model_predictions_climatology, month == x)
-    #   r_i <- r_temp
-    #   r_i[temp$cell] <- temp$.mean_pred
-    #   names(r_i) <- month.name[x]
-    #   r_i
-    # }) |>
-    #   terra::rast()
-    # terra::varnames(r) <- info$code
-    #
-    # terra::writeRaster(r, filename = fs::path(opt$dir_output, file_path))
-    # fs::path(!!opt$dir_output, file_path) |>
-    #   as.character()
+    save_raster(
+      model_predictions_climatology_gfdl_1_historical,
+      model_info = models_to_run,
+      grid = grid_10km,
+      crop = study_polygon,
+      dir_out = fs::path(opt$dir_processing, "output")
+    )
   },
-  pattern = model_predictions_climatology,
+  pattern = model_predictions_climatology_gfdl_1_historical,
+  format = "file",
+  iteration = "list"
+)
+
+# save summarized predictions as monthly map panel PNG files
+target_model_predictions_climatology_gfdl_1_historical_maps <- targets::tar_target(
+  model_predictions_climatology_gfdl_1_historical_maps,
+  command = {
+    create_map(
+      model_predictions_climatology_gfdl_1_historical,
+      model_info = models_to_run,
+      species_info = data_species_info,
+      land = shoreline_polygon,
+      borders = list(country_lines, state_lines),
+      dir_out = fs::path(opt$dir_processing, "output")
+    )
+  },
+  pattern = model_predictions_climatology_gfdl_1_historical,
   format = "file",
   iteration = "list"
 )
@@ -414,6 +545,9 @@ target_model_predictions_climatology_output <- targets::tar_target(
 list(
   target_grid_10km,
   target_study_polygon,
+  target_shoreline_polygon,
+  target_country_lines,
+  target_state_lines,
   target_data_bathy_10km,
   target_data_slope_10km,
   target_data_prediction_metadata,
@@ -434,9 +568,12 @@ list(
   target_model_metrics,
   target_model_workflows,
   target_model_fits,
+  target_model_fit_plots,
+  target_model_fit_plots_se
   # target_model_fit_resamples_spatial_5,
   # target_model_fit_resamples_spatial_10,
-  target_model_predictions
-  # target_model_predictions_climatology
-  # target_model_predictions_climatology_output
+  # target_model_predictions,
+  # target_model_predictions_climatology_gfdl_1_historical,
+  # target_model_predictions_climatology_gfdl_1_historical_rasters,
+  # target_model_predictions_climatology_gfdl_1_historical_maps
 )
