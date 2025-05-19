@@ -28,7 +28,7 @@ create_model_formula_mgcv <- function(lhs,
               "reanalysis_ild_05",
               "reanalysis_sst")
   }
-  form_spatial <- if (spatial_effect) "s(x, y)" else NULL
+  form_spatial <- if (spatial_effect) "s(x, y, bs = \"gp\", m = c(2, 3/2))" else NULL
   form_current <- stringr::str_glue("s({type}_su, {type}_sv)")
   form_wind <- stringr::str_glue("s({type}_sustr, {type}_svstr)")
   form_base <- stringr::str_glue(
