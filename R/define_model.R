@@ -105,16 +105,3 @@ define_model_workflow <- function(model_formula, data, species_size_class,
     workflows::add_recipe(recipe = model_recipe) |>
     workflows::add_model(model_spec, formula = model_formula)
 }
-
-#' Plot Marginal Effects for a GAM Model
-#'
-#' This function creates plots showing the marginal effects for terms in a
-#' Generalized Additive Model (GAM).
-#'
-#' @param model A fitted GAM model object.
-#' @param se Logical. Whether to show standard errors. Default is FALSE.
-#'
-#' @return A plot showing the marginal effects of model terms.
-plot_marginal_effects <- function(model, se = FALSE) {
-  mgcv::plot.gam(model, rug = TRUE, se = se, pages = 1, scale = 0, shade = TRUE)
-}
