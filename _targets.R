@@ -17,8 +17,8 @@ targets::tar_option_set(
   retrieval = "worker",
   controller = crew::crew_controller_local(
     # workers = 14,
-    # workers = 60,  # use when running target_model_predictions
-    workers = 80,  # use when not running target_model_predictions
+    workers = 60,  # use when running target_model_predictions
+    # workers = 80,  # use when not running target_model_predictions
     seconds_idle = 30,
     garbage_collection = TRUE
   )
@@ -569,11 +569,11 @@ list(
   target_model_workflows,
   target_model_fits,
   target_model_fit_plots,
-  target_model_fit_plots_se
+  target_model_fit_plots_se,
   # target_model_fit_resamples_spatial_5,
   # target_model_fit_resamples_spatial_10,
-  # target_model_predictions,
-  # target_model_predictions_climatology_gfdl_1_historical,
-  # target_model_predictions_climatology_gfdl_1_historical_rasters,
-  # target_model_predictions_climatology_gfdl_1_historical_maps
+  target_model_predictions,
+  target_model_predictions_climatology_gfdl_1_historical,
+  target_model_predictions_climatology_gfdl_1_historical_rasters,
+  target_model_predictions_climatology_gfdl_1_historical_maps
 )
