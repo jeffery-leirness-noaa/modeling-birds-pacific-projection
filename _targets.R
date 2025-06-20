@@ -17,15 +17,15 @@ targets::tar_option_set(
   retrieval = "worker",
   controller = crew::crew_controller_local(
     # workers = 14,
-    workers = 60,  # use when running target_model_predictions
-    # workers = 80,  # use when not running target_model_predictions
+    workers = 206,  # use when running target_model_predictions
+    # workers = 90,  # use when not running target_model_predictions
     seconds_idle = 30,
     garbage_collection = TRUE
   )
 )
 
 
-# specify targets ---------------------------------------------------------
+# specify data targets ----------------------------------------------------
 
 # 10-km prediction grid
 target_grid_10km <- targets::tar_target(
@@ -229,8 +229,15 @@ target_data_analysis_resamples_spatial_10 <- targets::tar_target(
 # define bootstrap resamples
 target_data_analysis_resamples_bootstrap <- targets::tar_target(
   data_analysis_resamples_bootstrap,
-  command = rsample::bootstraps(data_analysis, times = 1000)
+  command = rsample::bootstraps(data_analysis, times = 1000) |>
+    dplyr::mutate(
+      in_id = purrr::map(splits, \(x) x$in_id)
+    ) |>
+    dplyr::select(id, in_id)
 )
+
+
+# specify model fitting targets -------------------------------------------
 
 # create data frame of species to model
 target_species_to_model <- targets::tar_target(
@@ -245,6 +252,7 @@ target_models_to_run <- targets::tar_target(
   models_to_run,
   command = create_models_to_run_df(species_to_model) |>
     tibble::rowid_to_column(var = "model_id")
+    # dplyr::filter(spatial_effect)
 )
 
 # define model metrics
@@ -284,17 +292,6 @@ target_model_workflows <- targets::tar_target(
   pattern = map(models_to_run),
   iteration = "list"
 )
-
-# example of how to subset a dynamic branch
-# target_test_combine <- targets::tar_target(
-#   test_combine,
-#   command = {
-#     ids <- dplyr::filter(models_to_run, code %in% c("comu", "bfal", "pfsh")) |>
-#       dplyr::pull(model_id)
-#     dplyr::bind_rows(model_workflows) |>
-#       dplyr::filter(model_id %in% ids)
-#   }
-# )
 
 # fit models
 target_model_fits <- targets::tar_target(
@@ -339,10 +336,12 @@ target_model_fit_resamples_spatial_5 <- targets::tar_target(
   model_fit_resamples_spatial_5,
   command = tibble::tibble(
     model_id = model_workflows$model_id,
+    split_id = dplyr::pull(data_analysis_resamples_spatial_5, id),
     .fit = list(
       tune::fit_resamples(
         model_workflows$.workflow[[1]],
-        resamples = data_analysis_resamples_spatial_5,
+        resamples = dplyr::pull(data_analysis_resamples_spatial_5, splits) |>
+          rsample::manual_rset(ids = split_id),
         metrics = model_metrics,
         control = tune::control_resamples(
           extract = function(x) list(workflows::extract_recipe(x),
@@ -353,7 +352,7 @@ target_model_fit_resamples_spatial_5 <- targets::tar_target(
       )
     )
   ),
-  pattern = map(model_workflows),
+  pattern = cross(model_workflows, data_analysis_resamples_spatial_5),
   iteration = "list"
 )
 
@@ -362,10 +361,12 @@ target_model_fit_resamples_spatial_10 <- targets::tar_target(
   model_fit_resamples_spatial_10,
   command = tibble::tibble(
     model_id = model_workflows$model_id,
+    split_id = dplyr::pull(data_analysis_resamples_spatial_10, id),
     .fit = list(
       tune::fit_resamples(
         model_workflows$.workflow[[1]],
-        resamples = data_analysis_resamples_spatial_10,
+        resamples = dplyr::pull(data_analysis_resamples_spatial_10, splits) |>
+          rsample::manual_rset(ids = split_id),
         metrics = model_metrics,
         control = tune::control_resamples(
           extract = function(x) list(workflows::extract_recipe(x),
@@ -376,9 +377,12 @@ target_model_fit_resamples_spatial_10 <- targets::tar_target(
       )
     )
   ),
-  pattern = map(model_workflows),
+  pattern = cross(model_workflows, data_analysis_resamples_spatial_10),
   iteration = "list"
 )
+
+
+# specify model prediction targets ----------------------------------------
 
 # create predictions from fitted models
 values_model_predictions <- values_data_prediction |>
@@ -540,6 +544,150 @@ target_model_predictions_climatology_gfdl_1_historical_maps <- targets::tar_targ
 )
 
 
+# specify model bootstrapping targets -------------------------------------
+
+# fit models via bootstrap resampling
+target_model_workflows_final <- targets::tar_target(
+  model_workflows_final,
+  command = {
+    idx <- dplyr::filter(models_to_run, spatial_effect) |>
+      dplyr::pull(model_id)
+    dplyr::bind_rows(model_workflows) |>
+      dplyr::filter(model_id %in% idx) |>
+      dplyr::slice_sample(n = 3)
+  }
+)
+target_model_fits_bootstraps <- targets::tar_target(
+  model_fits_bootstraps,
+  command = tibble::tibble(
+    model_id = model_workflows_final$model_id,
+    bootstrap_id = data_analysis_resamples_bootstrap$id,
+    .fit = list(
+      generics::fit(
+        model_workflows_final$.workflow[[1]],
+        # data = rsample::analysis(data_analysis_resamples_bootstrap$splits[[1]])
+        data = data_analysis[data_analysis_resamples_bootstrap$in_id[[1]], ]
+      )
+    )
+  ),
+  pattern = cross(model_workflows_final, head(data_analysis_resamples_bootstrap, n = 4)),
+  iteration = "list"
+)
+
+# create predictions from bootstrapped models
+target_model_predictions_bootstraps <- tarchetypes::tar_map(
+  values = values_model_predictions,
+  targets::tar_target(
+    model_predictions_bootstraps_daily,
+    command = make_predictions(model_fits_bootstraps$.fit[[1]],
+                               data = v_target,
+                               label = "reanalysis",
+                               add = list(depth = data_bathy_10km,
+                                          slope = data_slope_10km),
+                               mask = study_polygon) |>
+      dplyr::mutate(model_id = model_fits_bootstraps$model_id,
+                    bootstrap_id = model_fits_bootstraps$bootstrap_id,
+                    .before = 1),
+    pattern = map(model_fits_bootstraps),
+    iteration = "list"
+  ),
+  targets::tar_target(
+    model_predictions_bootstraps_monthly,
+    command = dplyr::mutate(model_predictions_bootstraps_daily,
+                            year = lubridate::year(date),
+                            month = lubridate::month(date)) |>
+      dplyr::group_by(model_id, bootstrap_id, esm, cell, x, y, year, month) |>
+      dplyr::summarise(.ndays = dplyr::n(),
+                       .mean_pred = mean(.pred)) |>
+      dplyr::ungroup(),
+    pattern = map(model_predictions_bootstraps_daily),
+    iteration = "list"
+  ),
+  names = tidyselect::all_of(c("v_esm", "v_year"))
+)
+
+# combine/summarize predictions (i.e., create monthly "climatologies") for each bootstrap
+target_model_predictions_bootstraps_climatology_gfdl_1_historical <- targets::tar_target(
+  model_predictions_bootstraps_climatology_gfdl_1_historical,
+  command = dplyr::bind_rows(model_predictions_bootstraps_monthly_gfdl_1985,
+                             model_predictions_bootstraps_monthly_gfdl_1986,
+                             model_predictions_bootstraps_monthly_gfdl_1987,
+                             model_predictions_bootstraps_monthly_gfdl_1988,
+                             model_predictions_bootstraps_monthly_gfdl_1989,
+                             model_predictions_bootstraps_monthly_gfdl_1990,
+                             model_predictions_bootstraps_monthly_gfdl_1991,
+                             model_predictions_bootstraps_monthly_gfdl_1992,
+                             model_predictions_bootstraps_monthly_gfdl_1993,
+                             model_predictions_bootstraps_monthly_gfdl_1994,
+                             model_predictions_bootstraps_monthly_gfdl_1995,
+                             model_predictions_bootstraps_monthly_gfdl_1996,
+                             model_predictions_bootstraps_monthly_gfdl_1997,
+                             model_predictions_bootstraps_monthly_gfdl_1998,
+                             model_predictions_bootstraps_monthly_gfdl_1999,
+                             model_predictions_bootstraps_monthly_gfdl_2000,
+                             model_predictions_bootstraps_monthly_gfdl_2001,
+                             model_predictions_bootstraps_monthly_gfdl_2002,
+                             model_predictions_bootstraps_monthly_gfdl_2003,
+                             model_predictions_bootstraps_monthly_gfdl_2004,
+                             model_predictions_bootstraps_monthly_gfdl_2005,
+                             model_predictions_bootstraps_monthly_gfdl_2006,
+                             model_predictions_bootstraps_monthly_gfdl_2007,
+                             model_predictions_bootstraps_monthly_gfdl_2008,
+                             model_predictions_bootstraps_monthly_gfdl_2009,
+                             model_predictions_bootstraps_monthly_gfdl_2010,
+                             model_predictions_bootstraps_monthly_gfdl_2011,
+                             model_predictions_bootstraps_monthly_gfdl_2012,
+                             model_predictions_bootstraps_monthly_gfdl_2013,
+                             model_predictions_bootstraps_monthly_gfdl_2014) |>
+    dplyr::group_by(model_id, bootstrap_id, esm, cell, x, y, month) |>
+    dplyr::summarise(.mean_pred = stats::weighted.mean(.mean_pred, w = .ndays)) |>
+    dplyr::ungroup() |>
+    dplyr::mutate(period = "1_historical", .after = esm),
+  pattern = map(model_predictions_bootstraps_monthly_gfdl_1985,
+                model_predictions_bootstraps_monthly_gfdl_1986,
+                model_predictions_bootstraps_monthly_gfdl_1987,
+                model_predictions_bootstraps_monthly_gfdl_1988,
+                model_predictions_bootstraps_monthly_gfdl_1989,
+                model_predictions_bootstraps_monthly_gfdl_1990,
+                model_predictions_bootstraps_monthly_gfdl_1991,
+                model_predictions_bootstraps_monthly_gfdl_1992,
+                model_predictions_bootstraps_monthly_gfdl_1993,
+                model_predictions_bootstraps_monthly_gfdl_1994,
+                model_predictions_bootstraps_monthly_gfdl_1995,
+                model_predictions_bootstraps_monthly_gfdl_1996,
+                model_predictions_bootstraps_monthly_gfdl_1997,
+                model_predictions_bootstraps_monthly_gfdl_1998,
+                model_predictions_bootstraps_monthly_gfdl_1999,
+                model_predictions_bootstraps_monthly_gfdl_2000,
+                model_predictions_bootstraps_monthly_gfdl_2001,
+                model_predictions_bootstraps_monthly_gfdl_2002,
+                model_predictions_bootstraps_monthly_gfdl_2003,
+                model_predictions_bootstraps_monthly_gfdl_2004,
+                model_predictions_bootstraps_monthly_gfdl_2005,
+                model_predictions_bootstraps_monthly_gfdl_2006,
+                model_predictions_bootstraps_monthly_gfdl_2007,
+                model_predictions_bootstraps_monthly_gfdl_2008,
+                model_predictions_bootstraps_monthly_gfdl_2009,
+                model_predictions_bootstraps_monthly_gfdl_2010,
+                model_predictions_bootstraps_monthly_gfdl_2011,
+                model_predictions_bootstraps_monthly_gfdl_2012,
+                model_predictions_bootstraps_monthly_gfdl_2013,
+                model_predictions_bootstraps_monthly_gfdl_2014),
+  iteration = "list"
+)
+
+# example of how to subset a dynamic branch
+# target_test_combine <- targets::tar_target(
+#   test_combine,
+#   command = {
+#     ids <- dplyr::filter(models_to_run, code %in% c("comu", "bfal", "pfsh")) |>
+#       dplyr::pull(model_id)
+#     dplyr::bind_rows(model_workflows) |>
+#       dplyr::filter(model_id %in% ids)
+#   }
+# )
+
+
 # submit targets ----------------------------------------------------------
 
 list(
@@ -568,12 +716,14 @@ list(
   target_model_metrics,
   target_model_workflows,
   target_model_fits,
-  target_model_fit_plots,
-  target_model_fit_plots_se,
-  # target_model_fit_resamples_spatial_5,
-  # target_model_fit_resamples_spatial_10,
-  target_model_predictions,
-  target_model_predictions_climatology_gfdl_1_historical,
-  target_model_predictions_climatology_gfdl_1_historical_rasters,
-  target_model_predictions_climatology_gfdl_1_historical_maps
+  # target_model_fit_plots,
+  # target_model_fit_plots_se,
+  target_model_fit_resamples_spatial_5
+  # target_model_fit_resamples_spatial_10
+  # target_model_predictions,
+  # target_model_predictions_climatology_gfdl_1_historical,
+  # target_model_predictions_climatology_gfdl_1_historical_rasters,
+  # target_model_predictions_climatology_gfdl_1_historical_maps
+  # target_model_workflows_final,
+  # target_model_fits_bootstraps
 )
