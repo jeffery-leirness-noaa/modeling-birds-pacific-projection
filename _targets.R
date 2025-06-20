@@ -252,7 +252,7 @@ target_models_to_run <- targets::tar_target(
   models_to_run,
   command = create_models_to_run_df(species_to_model) |>
     tibble::rowid_to_column(var = "model_id")
-    # dplyr::filter(spatial_effect)
+  # dplyr::filter(spatial_effect)
 )
 
 # define model metrics
@@ -305,9 +305,33 @@ target_model_fits <- targets::tar_target(
   iteration = "list"
 )
 
+# create data frame of fitted model summaries
+target_model_fits_summary <- targets::tar_target(
+  model_fits_summary,
+  command = dplyr::bind_cols(
+    dplyr::select(model_fits, model_id),
+    broom::tidy(model_fits$.fit[[1]])
+  ),
+  pattern = map(model_fits),
+  iteration = "list"
+)
+
+# create mgcv::gam.check() plots for fitted models
+target_model_fits_gam_check_plots <- targets::tar_target(
+  model_fits_gam_check_plots,
+  command = create_gam_check_plot(
+    model = model_fits,
+    model_info = models_to_run,,
+    dir_out = fs::path(opt$dir_processing, "output")
+  ),
+  pattern = map(model_fits),
+  format = "file",
+  iteration = "list"
+)
+
 # create marginal effects plots for fitted models
-target_model_fit_plots <- targets::tar_target(
-  model_fit_plots,
+target_model_fits_plots <- targets::tar_target(
+  model_fits_plots,
   command = create_marginal_effects_plot(
     model = model_fits,
     model_info = models_to_run,
@@ -318,8 +342,8 @@ target_model_fit_plots <- targets::tar_target(
   format = "file",
   iteration = "list"
 )
-target_model_fit_plots_se <- targets::tar_target(
-  model_fit_plots_se,
+target_model_fits_plots_se <- targets::tar_target(
+  model_fits_plots_se,
   command = create_marginal_effects_plot(
     model = model_fits,
     model_info = models_to_run,
@@ -716,8 +740,10 @@ list(
   target_model_metrics,
   target_model_workflows,
   target_model_fits,
-  # target_model_fit_plots,
-  # target_model_fit_plots_se,
+  target_model_fits_summary,
+  # target_model_fits_gam_check_plots,
+  # target_model_fits_plots,
+  # target_model_fits_plots_se,
   target_model_fit_resamples_spatial_5
   # target_model_fit_resamples_spatial_10
   # target_model_predictions,
