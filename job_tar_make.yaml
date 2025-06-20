@@ -6,7 +6,8 @@ command: Rscript tar_make_cluster.R --dir_in=${{inputs.dir_in}} --dir_processing
 code: .
 environment: azureml://registries/nccos-registry-ml/environments/nccos-leirness-modeling-birds-pacific-projection/versions/22
 # compute: nccos-vm-cluster-d14v2
-compute: nccos-vm-cluster-d96av4
+# compute: nccos-vm-cluster-d96av4
+compute: nccos-vm-cluster-m208sv2
 resources:
   instance_count: 1
 inputs:
