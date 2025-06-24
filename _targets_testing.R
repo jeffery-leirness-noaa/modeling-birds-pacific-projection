@@ -18,7 +18,7 @@ targets::tar_option_set(
   controller = crew::crew_controller_local(
     # workers = 14,
     # workers = 206,  # use when running target_model_predictions
-    workers = 80,  # use when not running target_model_predictions
+    workers = 80, # use when not running target_model_predictions
     seconds_idle = 30,
     garbage_collection = TRUE
   )
@@ -89,8 +89,11 @@ target_state_lines <- targets::tar_target(
 target_data_bathy_10km <- targets::tar_target(
   data_bathy_10km,
   command = {
-    r <- fs::path(opt$dir_in, "environmental-data",
-                  "gebco_2024_sub_ice_n90.0_s0.0_w-180.0_e-90.0.tiff") |>
+    r <- fs::path(
+      opt$dir_in,
+      "environmental-data",
+      "gebco_2024_sub_ice_n90.0_s0.0_w-180.0_e-90.0.tiff"
+    ) |>
       terra::rast()
     terra::project(r * 1, y = grid_10km)
   },
@@ -101,8 +104,12 @@ target_data_bathy_10km <- targets::tar_target(
 # create slope raster layer
 target_data_slope_10km <- targets::tar_target(
   data_slope_10km,
-  command = MultiscaleDTM::SlpAsp(data_bathy_10km, w = c(3, 3),
-                                  method = "queen", metrics = "slope"),
+  command = MultiscaleDTM::SlpAsp(
+    data_bathy_10km,
+    w = c(3, 3),
+    method = "queen",
+    metrics = "slope"
+  ),
   format = define_tar_format_terra_rast("GTiff")
 )
 
@@ -123,7 +130,11 @@ target_data_prediction <- tarchetypes::tar_map(
   values = values_data_prediction,
   targets::tar_target(
     data_prediction,
-    command = dplyr::filter(data_prediction_metadata, esm == v_esm, year == v_year) |>
+    command = dplyr::filter(
+      data_prediction_metadata,
+      esm == v_esm,
+      year == v_year
+    ) |>
       create_prediction_data_df(grid = grid_10km, path_prefix = opt$dir_in),
     cue = targets::tar_cue(depend = FALSE)
   )
@@ -154,8 +165,11 @@ target_data_bird_10km <- targets::tar_target(
 # 1980-2010 hindcast predictor data sampled at marine bird data locations and months
 target_data_bird_10km_wc12 <- targets::tar_target(
   data_bird_10km_wc12,
-  command = fs::path(opt$dir_in, "species-data",
-                     "segmented-data-10km-daily-wc12.csv") |>
+  command = fs::path(
+    opt$dir_in,
+    "species-data",
+    "segmented-data-10km-daily-wc12.csv"
+  ) |>
     readr::read_csv(name_repair = janitor::make_clean_names) |>
     prepare_data_covariates(label = "hindcast"),
   cue = targets::tar_cue(depend = FALSE)
@@ -164,8 +178,11 @@ target_data_bird_10km_wc12 <- targets::tar_target(
 # 1980-2010 reanalysis predictor data sampled at marine bird data locations and months
 target_data_bird_10km_wcra31 <- targets::tar_target(
   data_bird_10km_wcra31,
-  command = fs::path(opt$dir_in, "species-data",
-                     "segmented-data-10km-daily-wcra31.csv") |>
+  command = fs::path(
+    opt$dir_in,
+    "species-data",
+    "segmented-data-10km-daily-wcra31.csv"
+  ) |>
     readr::read_csv(name_repair = janitor::make_clean_names) |>
     prepare_data_covariates(label = "reanalysis"),
   cue = targets::tar_cue(depend = FALSE)
@@ -174,8 +191,11 @@ target_data_bird_10km_wcra31 <- targets::tar_target(
 # 2011-24 reanalysis predictor data sampled at marine bird data locations and months
 target_data_bird_10km_wcnrt <- targets::tar_target(
   data_bird_10km_wcnrt,
-  command = fs::path(opt$dir_in, "species-data",
-                     "segmented-data-10km-daily-wcnrt.csv") |>
+  command = fs::path(
+    opt$dir_in,
+    "species-data",
+    "segmented-data-10km-daily-wcnrt.csv"
+  ) |>
     readr::read_csv(name_repair = janitor::make_clean_names) |>
     prepare_data_covariates(label = "reanalysis"),
   cue = targets::tar_cue(depend = FALSE)
@@ -202,11 +222,11 @@ target_data_analysis <- targets::tar_target(
   command = {
     data <- prepare_data_analysis(
       data_bird_10km,
-      data_covariates = list(data_bird_10km_wc12,
-                             dplyr::bind_rows(data_bird_10km_wcra31,
-                                              data_bird_10km_wcnrt)),
-      add = list(depth = data_bathy_10km,
-                 slope = data_slope_10km)
+      data_covariates = list(
+        data_bird_10km_wc12,
+        dplyr::bind_rows(data_bird_10km_wcra31, data_bird_10km_wcnrt)
+      ),
+      add = list(depth = data_bathy_10km, slope = data_slope_10km)
     )
     temp <- terra::extract(data_mask, data, ID = FALSE) |>
       dplyr::pull()
@@ -242,9 +262,11 @@ target_data_analysis_resamples_bootstrap <- targets::tar_target(
 # create data frame of species to model
 target_species_to_model <- targets::tar_target(
   species_to_model,
-  command = create_species_to_model_df(data_analysis,
-                                       species_info_df = data_species_info,
-                                       threshold = 50)
+  command = create_species_to_model_df(
+    data_analysis,
+    species_info_df = data_species_info,
+    threshold = 50
+  )
 )
 
 # create data frame of models to run
@@ -257,37 +279,42 @@ target_models_to_run <- targets::tar_target(
 # define model metrics
 target_model_metrics <- targets::tar_target(
   model_metrics,
-  command = yardstick::metric_set(yardstick::ccc,
-                                  yardstick::huber_loss,
-                                  yardstick::huber_loss_pseudo,
-                                  yardstick::iic,
-                                  yardstick::mae,
-                                  yardstick::mape,
-                                  yardstick::mase,
-                                  yardstick::mpe,
-                                  yardstick::msd,
-                                  yardstick::poisson_log_loss,
-                                  yardstick::rmse,
-                                  rmsle,
-                                  yardstick::rpd,
-                                  yardstick::rpiq,
-                                  yardstick::rsq,
-                                  yardstick::rsq_trad,
-                                  yardstick::smape)
+  command = yardstick::metric_set(
+    yardstick::ccc,
+    yardstick::huber_loss,
+    yardstick::huber_loss_pseudo,
+    yardstick::iic,
+    yardstick::mae,
+    yardstick::mape,
+    yardstick::mase,
+    yardstick::mpe,
+    yardstick::msd,
+    yardstick::poisson_log_loss,
+    yardstick::rmse,
+    rmsle,
+    yardstick::rpd,
+    yardstick::rpiq,
+    yardstick::rsq,
+    yardstick::rsq_trad,
+    yardstick::smape
+  )
 )
 
 # define model workflows
 target_model_workflows <- targets::tar_target(
   model_workflows,
-  command = tibble::tibble(model_id = models_to_run$model_id,
-                           .workflow = list(
-                             define_model_workflow(
-                               as.formula(models_to_run$model_formula),
-                               data = data_analysis,
-                               species_size_class = models_to_run$size_class,
-                               mgcv_select = TRUE,
-                               mgcv_gamma = models_to_run$mgcv_gamma
-                             ))),
+  command = tibble::tibble(
+    model_id = models_to_run$model_id,
+    .workflow = list(
+      define_model_workflow(
+        as.formula(models_to_run$model_formula),
+        data = data_analysis,
+        species_size_class = models_to_run$size_class,
+        mgcv_select = TRUE,
+        mgcv_gamma = models_to_run$mgcv_gamma
+      )
+    )
+  ),
   pattern = map(models_to_run),
   iteration = "list"
 )
@@ -295,11 +322,12 @@ target_model_workflows <- targets::tar_target(
 # fit models
 target_model_fits <- targets::tar_target(
   model_fits,
-  command = tibble::tibble(model_id = model_workflows$model_id,
-                           .fit = list(
-                             generics::fit(model_workflows$.workflow[[1]],
-                                           data = data_analysis)
-                           )),
+  command = tibble::tibble(
+    model_id = model_workflows$model_id,
+    .fit = list(
+      generics::fit(model_workflows$.workflow[[1]], data = data_analysis)
+    )
+  ),
   pattern = map(model_workflows),
   iteration = "list"
 )
@@ -341,8 +369,12 @@ target_model_fit_resamples_spatial_5 <- targets::tar_target(
         resamples = data_analysis_resamples_spatial_5,
         metrics = model_metrics,
         control = tune::control_resamples(
-          extract = function(x) list(workflows::extract_recipe(x),
-                                     workflows::extract_fit_parsnip(x)),
+          extract = function(x) {
+            list(
+              workflows::extract_recipe(x),
+              workflows::extract_fit_parsnip(x)
+            )
+          },
           save_pred = TRUE,
           save_workflow = TRUE
         )
@@ -364,8 +396,12 @@ target_model_fit_resamples_spatial_10 <- targets::tar_target(
         resamples = data_analysis_resamples_spatial_10,
         metrics = model_metrics,
         control = tune::control_resamples(
-          extract = function(x) list(workflows::extract_recipe(x),
-                                     workflows::extract_fit_parsnip(x)),
+          extract = function(x) {
+            list(
+              workflows::extract_recipe(x),
+              workflows::extract_fit_parsnip(x)
+            )
+          },
           save_pred = TRUE,
           save_workflow = TRUE
         )
@@ -385,30 +421,31 @@ values_model_predictions <- values_data_prediction |>
     v_target = glue::glue("data_prediction_{v_esm}_{v_year}") |>
       rlang::syms()
   ) |>
-  dplyr::filter(v_esm == "gfdl",
-                v_year %in% 1980:2017)
+  dplyr::filter(v_esm == "gfdl", v_year %in% 1980:2017)
 target_model_predictions <- tarchetypes::tar_map(
   values = values_model_predictions,
   targets::tar_target(
     model_predictions_daily,
-    command = make_predictions(model_fits$.fit[[1]],
-                               data = v_target,
-                               label = "reanalysis",
-                               add = list(depth = data_bathy_10km,
-                                          slope = data_slope_10km),
-                               mask = study_polygon) |>
+    command = make_predictions(
+      model_fits$.fit[[1]],
+      data = v_target,
+      label = "reanalysis",
+      add = list(depth = data_bathy_10km, slope = data_slope_10km),
+      mask = study_polygon
+    ) |>
       dplyr::mutate(model_id = model_fits$model_id, .before = 1),
     pattern = map(model_fits |> head(n = 300)),
     iteration = "list"
   ),
   targets::tar_target(
     model_predictions_monthly,
-    command = dplyr::mutate(model_predictions_daily,
-                            year = lubridate::year(date),
-                            month = lubridate::month(date)) |>
+    command = dplyr::mutate(
+      model_predictions_daily,
+      year = lubridate::year(date),
+      month = lubridate::month(date)
+    ) |>
       dplyr::group_by(model_id, esm, cell, x, y, year, month) |>
-      dplyr::summarise(.ndays = dplyr::n(),
-                       .mean_pred = mean(.pred)) |>
+      dplyr::summarise(.ndays = dplyr::n(), .mean_pred = mean(.pred)) |>
       dplyr::ungroup(),
     pattern = map(model_predictions_daily),
     iteration = "list"
@@ -436,70 +473,76 @@ target_model_predictions <- tarchetypes::tar_map(
 #   )
 target_model_predictions_climatology_gfdl_1_historical <- targets::tar_target(
   model_predictions_climatology_gfdl_1_historical,
-  command = dplyr::bind_rows(model_predictions_monthly_gfdl_1985,
-                             model_predictions_monthly_gfdl_1986,
-                             model_predictions_monthly_gfdl_1987,
-                             model_predictions_monthly_gfdl_1988,
-                             model_predictions_monthly_gfdl_1989,
-                             model_predictions_monthly_gfdl_1990,
-                             model_predictions_monthly_gfdl_1991,
-                             model_predictions_monthly_gfdl_1992,
-                             model_predictions_monthly_gfdl_1993,
-                             model_predictions_monthly_gfdl_1994,
-                             model_predictions_monthly_gfdl_1995,
-                             model_predictions_monthly_gfdl_1996,
-                             model_predictions_monthly_gfdl_1997,
-                             model_predictions_monthly_gfdl_1998,
-                             model_predictions_monthly_gfdl_1999,
-                             model_predictions_monthly_gfdl_2000,
-                             model_predictions_monthly_gfdl_2001,
-                             model_predictions_monthly_gfdl_2002,
-                             model_predictions_monthly_gfdl_2003,
-                             model_predictions_monthly_gfdl_2004,
-                             model_predictions_monthly_gfdl_2005,
-                             model_predictions_monthly_gfdl_2006,
-                             model_predictions_monthly_gfdl_2007,
-                             model_predictions_monthly_gfdl_2008,
-                             model_predictions_monthly_gfdl_2009,
-                             model_predictions_monthly_gfdl_2010,
-                             model_predictions_monthly_gfdl_2011,
-                             model_predictions_monthly_gfdl_2012,
-                             model_predictions_monthly_gfdl_2013,
-                             model_predictions_monthly_gfdl_2014) |>
+  command = dplyr::bind_rows(
+    model_predictions_monthly_gfdl_1985,
+    model_predictions_monthly_gfdl_1986,
+    model_predictions_monthly_gfdl_1987,
+    model_predictions_monthly_gfdl_1988,
+    model_predictions_monthly_gfdl_1989,
+    model_predictions_monthly_gfdl_1990,
+    model_predictions_monthly_gfdl_1991,
+    model_predictions_monthly_gfdl_1992,
+    model_predictions_monthly_gfdl_1993,
+    model_predictions_monthly_gfdl_1994,
+    model_predictions_monthly_gfdl_1995,
+    model_predictions_monthly_gfdl_1996,
+    model_predictions_monthly_gfdl_1997,
+    model_predictions_monthly_gfdl_1998,
+    model_predictions_monthly_gfdl_1999,
+    model_predictions_monthly_gfdl_2000,
+    model_predictions_monthly_gfdl_2001,
+    model_predictions_monthly_gfdl_2002,
+    model_predictions_monthly_gfdl_2003,
+    model_predictions_monthly_gfdl_2004,
+    model_predictions_monthly_gfdl_2005,
+    model_predictions_monthly_gfdl_2006,
+    model_predictions_monthly_gfdl_2007,
+    model_predictions_monthly_gfdl_2008,
+    model_predictions_monthly_gfdl_2009,
+    model_predictions_monthly_gfdl_2010,
+    model_predictions_monthly_gfdl_2011,
+    model_predictions_monthly_gfdl_2012,
+    model_predictions_monthly_gfdl_2013,
+    model_predictions_monthly_gfdl_2014
+  ) |>
     dplyr::group_by(model_id, esm, cell, x, y, month) |>
-    dplyr::summarise(.mean_pred = stats::weighted.mean(.mean_pred, w = .ndays)) |>
+    dplyr::summarise(
+      .mean_pred = stats::weighted.mean(.mean_pred, w = .ndays)
+    ) |>
     dplyr::ungroup() |>
     dplyr::mutate(period = "1_historical", .after = esm),
-  pattern = map(model_predictions_monthly_gfdl_1985,
-                model_predictions_monthly_gfdl_1986,
-                model_predictions_monthly_gfdl_1987,
-                model_predictions_monthly_gfdl_1988,
-                model_predictions_monthly_gfdl_1989,
-                model_predictions_monthly_gfdl_1990,
-                model_predictions_monthly_gfdl_1991,
-                model_predictions_monthly_gfdl_1992,
-                model_predictions_monthly_gfdl_1993,
-                model_predictions_monthly_gfdl_1994,
-                model_predictions_monthly_gfdl_1995,
-                model_predictions_monthly_gfdl_1996,
-                model_predictions_monthly_gfdl_1997,
-                model_predictions_monthly_gfdl_1998,
-                model_predictions_monthly_gfdl_1999,
-                model_predictions_monthly_gfdl_2000,
-                model_predictions_monthly_gfdl_2001,
-                model_predictions_monthly_gfdl_2002,
-                model_predictions_monthly_gfdl_2003,
-                model_predictions_monthly_gfdl_2004,
-                model_predictions_monthly_gfdl_2005,
-                model_predictions_monthly_gfdl_2006,
-                model_predictions_monthly_gfdl_2007,
-                model_predictions_monthly_gfdl_2008,
-                model_predictions_monthly_gfdl_2009,
-                model_predictions_monthly_gfdl_2010,
-                model_predictions_monthly_gfdl_2011,
-                model_predictions_monthly_gfdl_2012,
-                model_predictions_monthly_gfdl_2013,
-                model_predictions_monthly_gfdl_2014),
+  pattern = map(
+    model_predictions_monthly_gfdl_1985,
+    model_predictions_monthly_gfdl_1986,
+    model_predictions_monthly_gfdl_1987,
+    model_predictions_monthly_gfdl_1988,
+    model_predictions_monthly_gfdl_1989,
+    model_predictions_monthly_gfdl_1990,
+    model_predictions_monthly_gfdl_1991,
+    model_predictions_monthly_gfdl_1992,
+    model_predictions_monthly_gfdl_1993,
+    model_predictions_monthly_gfdl_1994,
+    model_predictions_monthly_gfdl_1995,
+    model_predictions_monthly_gfdl_1996,
+    model_predictions_monthly_gfdl_1997,
+    model_predictions_monthly_gfdl_1998,
+    model_predictions_monthly_gfdl_1999,
+    model_predictions_monthly_gfdl_2000,
+    model_predictions_monthly_gfdl_2001,
+    model_predictions_monthly_gfdl_2002,
+    model_predictions_monthly_gfdl_2003,
+    model_predictions_monthly_gfdl_2004,
+    model_predictions_monthly_gfdl_2005,
+    model_predictions_monthly_gfdl_2006,
+    model_predictions_monthly_gfdl_2007,
+    model_predictions_monthly_gfdl_2008,
+    model_predictions_monthly_gfdl_2009,
+    model_predictions_monthly_gfdl_2010,
+    model_predictions_monthly_gfdl_2011,
+    model_predictions_monthly_gfdl_2012,
+    model_predictions_monthly_gfdl_2013,
+    model_predictions_monthly_gfdl_2014
+  ),
   iteration = "list"
 )
 
@@ -565,7 +608,10 @@ target_model_fits_bootstraps <- targets::tar_target(
       )
     )
   ),
-  pattern = cross(model_workflows_final, head(data_analysis_resamples_bootstrap, n = 4)),
+  pattern = cross(
+    model_workflows_final,
+    head(data_analysis_resamples_bootstrap, n = 4)
+  ),
   iteration = "list"
 )
 
@@ -574,26 +620,30 @@ target_model_predictions_bootstraps <- tarchetypes::tar_map(
   values = values_model_predictions,
   targets::tar_target(
     model_predictions_bootstraps_daily,
-    command = make_predictions(model_fits_bootstraps$.fit[[1]],
-                               data = v_target,
-                               label = "reanalysis",
-                               add = list(depth = data_bathy_10km,
-                                          slope = data_slope_10km),
-                               mask = study_polygon) |>
-      dplyr::mutate(model_id = model_fits_bootstraps$model_id,
-                    bootstrap_id = model_fits_bootstraps$bootstrap_id,
-                    .before = 1),
+    command = make_predictions(
+      model_fits_bootstraps$.fit[[1]],
+      data = v_target,
+      label = "reanalysis",
+      add = list(depth = data_bathy_10km, slope = data_slope_10km),
+      mask = study_polygon
+    ) |>
+      dplyr::mutate(
+        model_id = model_fits_bootstraps$model_id,
+        bootstrap_id = model_fits_bootstraps$bootstrap_id,
+        .before = 1
+      ),
     pattern = map(model_fits_bootstraps),
     iteration = "list"
   ),
   targets::tar_target(
     model_predictions_bootstraps_monthly,
-    command = dplyr::mutate(model_predictions_bootstraps_daily,
-                            year = lubridate::year(date),
-                            month = lubridate::month(date)) |>
+    command = dplyr::mutate(
+      model_predictions_bootstraps_daily,
+      year = lubridate::year(date),
+      month = lubridate::month(date)
+    ) |>
       dplyr::group_by(model_id, bootstrap_id, esm, cell, x, y, year, month) |>
-      dplyr::summarise(.ndays = dplyr::n(),
-                       .mean_pred = mean(.pred)) |>
+      dplyr::summarise(.ndays = dplyr::n(), .mean_pred = mean(.pred)) |>
       dplyr::ungroup(),
     pattern = map(model_predictions_bootstraps_daily),
     iteration = "list"
@@ -604,70 +654,76 @@ target_model_predictions_bootstraps <- tarchetypes::tar_map(
 # combine/summarize predictions (i.e., create monthly "climatologies") for each bootstrap
 target_model_predictions_bootstraps_climatology_gfdl_1_historical <- targets::tar_target(
   model_predictions_bootstraps_climatology_gfdl_1_historical,
-  command = dplyr::bind_rows(model_predictions_bootstraps_monthly_gfdl_1985,
-                             model_predictions_bootstraps_monthly_gfdl_1986,
-                             model_predictions_bootstraps_monthly_gfdl_1987,
-                             model_predictions_bootstraps_monthly_gfdl_1988,
-                             model_predictions_bootstraps_monthly_gfdl_1989,
-                             model_predictions_bootstraps_monthly_gfdl_1990,
-                             model_predictions_bootstraps_monthly_gfdl_1991,
-                             model_predictions_bootstraps_monthly_gfdl_1992,
-                             model_predictions_bootstraps_monthly_gfdl_1993,
-                             model_predictions_bootstraps_monthly_gfdl_1994,
-                             model_predictions_bootstraps_monthly_gfdl_1995,
-                             model_predictions_bootstraps_monthly_gfdl_1996,
-                             model_predictions_bootstraps_monthly_gfdl_1997,
-                             model_predictions_bootstraps_monthly_gfdl_1998,
-                             model_predictions_bootstraps_monthly_gfdl_1999,
-                             model_predictions_bootstraps_monthly_gfdl_2000,
-                             model_predictions_bootstraps_monthly_gfdl_2001,
-                             model_predictions_bootstraps_monthly_gfdl_2002,
-                             model_predictions_bootstraps_monthly_gfdl_2003,
-                             model_predictions_bootstraps_monthly_gfdl_2004,
-                             model_predictions_bootstraps_monthly_gfdl_2005,
-                             model_predictions_bootstraps_monthly_gfdl_2006,
-                             model_predictions_bootstraps_monthly_gfdl_2007,
-                             model_predictions_bootstraps_monthly_gfdl_2008,
-                             model_predictions_bootstraps_monthly_gfdl_2009,
-                             model_predictions_bootstraps_monthly_gfdl_2010,
-                             model_predictions_bootstraps_monthly_gfdl_2011,
-                             model_predictions_bootstraps_monthly_gfdl_2012,
-                             model_predictions_bootstraps_monthly_gfdl_2013,
-                             model_predictions_bootstraps_monthly_gfdl_2014) |>
+  command = dplyr::bind_rows(
+    model_predictions_bootstraps_monthly_gfdl_1985,
+    model_predictions_bootstraps_monthly_gfdl_1986,
+    model_predictions_bootstraps_monthly_gfdl_1987,
+    model_predictions_bootstraps_monthly_gfdl_1988,
+    model_predictions_bootstraps_monthly_gfdl_1989,
+    model_predictions_bootstraps_monthly_gfdl_1990,
+    model_predictions_bootstraps_monthly_gfdl_1991,
+    model_predictions_bootstraps_monthly_gfdl_1992,
+    model_predictions_bootstraps_monthly_gfdl_1993,
+    model_predictions_bootstraps_monthly_gfdl_1994,
+    model_predictions_bootstraps_monthly_gfdl_1995,
+    model_predictions_bootstraps_monthly_gfdl_1996,
+    model_predictions_bootstraps_monthly_gfdl_1997,
+    model_predictions_bootstraps_monthly_gfdl_1998,
+    model_predictions_bootstraps_monthly_gfdl_1999,
+    model_predictions_bootstraps_monthly_gfdl_2000,
+    model_predictions_bootstraps_monthly_gfdl_2001,
+    model_predictions_bootstraps_monthly_gfdl_2002,
+    model_predictions_bootstraps_monthly_gfdl_2003,
+    model_predictions_bootstraps_monthly_gfdl_2004,
+    model_predictions_bootstraps_monthly_gfdl_2005,
+    model_predictions_bootstraps_monthly_gfdl_2006,
+    model_predictions_bootstraps_monthly_gfdl_2007,
+    model_predictions_bootstraps_monthly_gfdl_2008,
+    model_predictions_bootstraps_monthly_gfdl_2009,
+    model_predictions_bootstraps_monthly_gfdl_2010,
+    model_predictions_bootstraps_monthly_gfdl_2011,
+    model_predictions_bootstraps_monthly_gfdl_2012,
+    model_predictions_bootstraps_monthly_gfdl_2013,
+    model_predictions_bootstraps_monthly_gfdl_2014
+  ) |>
     dplyr::group_by(model_id, bootstrap_id, esm, cell, x, y, month) |>
-    dplyr::summarise(.mean_pred = stats::weighted.mean(.mean_pred, w = .ndays)) |>
+    dplyr::summarise(
+      .mean_pred = stats::weighted.mean(.mean_pred, w = .ndays)
+    ) |>
     dplyr::ungroup() |>
     dplyr::mutate(period = "1_historical", .after = esm),
-  pattern = map(model_predictions_bootstraps_monthly_gfdl_1985,
-                model_predictions_bootstraps_monthly_gfdl_1986,
-                model_predictions_bootstraps_monthly_gfdl_1987,
-                model_predictions_bootstraps_monthly_gfdl_1988,
-                model_predictions_bootstraps_monthly_gfdl_1989,
-                model_predictions_bootstraps_monthly_gfdl_1990,
-                model_predictions_bootstraps_monthly_gfdl_1991,
-                model_predictions_bootstraps_monthly_gfdl_1992,
-                model_predictions_bootstraps_monthly_gfdl_1993,
-                model_predictions_bootstraps_monthly_gfdl_1994,
-                model_predictions_bootstraps_monthly_gfdl_1995,
-                model_predictions_bootstraps_monthly_gfdl_1996,
-                model_predictions_bootstraps_monthly_gfdl_1997,
-                model_predictions_bootstraps_monthly_gfdl_1998,
-                model_predictions_bootstraps_monthly_gfdl_1999,
-                model_predictions_bootstraps_monthly_gfdl_2000,
-                model_predictions_bootstraps_monthly_gfdl_2001,
-                model_predictions_bootstraps_monthly_gfdl_2002,
-                model_predictions_bootstraps_monthly_gfdl_2003,
-                model_predictions_bootstraps_monthly_gfdl_2004,
-                model_predictions_bootstraps_monthly_gfdl_2005,
-                model_predictions_bootstraps_monthly_gfdl_2006,
-                model_predictions_bootstraps_monthly_gfdl_2007,
-                model_predictions_bootstraps_monthly_gfdl_2008,
-                model_predictions_bootstraps_monthly_gfdl_2009,
-                model_predictions_bootstraps_monthly_gfdl_2010,
-                model_predictions_bootstraps_monthly_gfdl_2011,
-                model_predictions_bootstraps_monthly_gfdl_2012,
-                model_predictions_bootstraps_monthly_gfdl_2013,
-                model_predictions_bootstraps_monthly_gfdl_2014),
+  pattern = map(
+    model_predictions_bootstraps_monthly_gfdl_1985,
+    model_predictions_bootstraps_monthly_gfdl_1986,
+    model_predictions_bootstraps_monthly_gfdl_1987,
+    model_predictions_bootstraps_monthly_gfdl_1988,
+    model_predictions_bootstraps_monthly_gfdl_1989,
+    model_predictions_bootstraps_monthly_gfdl_1990,
+    model_predictions_bootstraps_monthly_gfdl_1991,
+    model_predictions_bootstraps_monthly_gfdl_1992,
+    model_predictions_bootstraps_monthly_gfdl_1993,
+    model_predictions_bootstraps_monthly_gfdl_1994,
+    model_predictions_bootstraps_monthly_gfdl_1995,
+    model_predictions_bootstraps_monthly_gfdl_1996,
+    model_predictions_bootstraps_monthly_gfdl_1997,
+    model_predictions_bootstraps_monthly_gfdl_1998,
+    model_predictions_bootstraps_monthly_gfdl_1999,
+    model_predictions_bootstraps_monthly_gfdl_2000,
+    model_predictions_bootstraps_monthly_gfdl_2001,
+    model_predictions_bootstraps_monthly_gfdl_2002,
+    model_predictions_bootstraps_monthly_gfdl_2003,
+    model_predictions_bootstraps_monthly_gfdl_2004,
+    model_predictions_bootstraps_monthly_gfdl_2005,
+    model_predictions_bootstraps_monthly_gfdl_2006,
+    model_predictions_bootstraps_monthly_gfdl_2007,
+    model_predictions_bootstraps_monthly_gfdl_2008,
+    model_predictions_bootstraps_monthly_gfdl_2009,
+    model_predictions_bootstraps_monthly_gfdl_2010,
+    model_predictions_bootstraps_monthly_gfdl_2011,
+    model_predictions_bootstraps_monthly_gfdl_2012,
+    model_predictions_bootstraps_monthly_gfdl_2013,
+    model_predictions_bootstraps_monthly_gfdl_2014
+  ),
   iteration = "list"
 )
 
@@ -681,7 +737,6 @@ target_model_predictions_bootstraps_climatology_gfdl_1_historical <- targets::ta
 #       dplyr::filter(model_id %in% ids)
 #   }
 # )
-
 
 # submit targets ----------------------------------------------------------
 
