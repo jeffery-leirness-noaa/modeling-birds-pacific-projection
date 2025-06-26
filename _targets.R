@@ -17,8 +17,8 @@ targets::tar_option_set(
   retrieval = "worker",
   controller = crew::crew_controller_local(
     # workers = 14,
-    workers = 206, # use when running target_model_predictions
-    # workers = 90, # use when not running target_model_predictions
+    # workers = 90,
+    workers = 206,
     seconds_idle = 30,
     garbage_collection = TRUE
   )
@@ -274,9 +274,16 @@ target_models_to_run <- targets::tar_target(
   models_to_run,
   command = create_models_to_run_df(species_to_model) |>
     tibble::rowid_to_column(var = "model_id") |>
-    dplyr::filter(spatial_effect) |>
-    dplyr::slice_head(n = 100)
+    dplyr::filter(!stringr::str_starts(code, pattern = "grp_"))
 )
+# target_models_to_run_nogrp_index <- targets::tar_target(
+#   models_to_run_nogrp_index,
+#   command = dplyr::filter(
+#     models_to_run,
+#     !stringr::str_starts(code, pattern = "grp_")
+#   ) |>
+#     dplyr::pull(model_id)
+# )
 
 # define model metrics
 target_model_metrics <- targets::tar_target(
@@ -337,12 +344,18 @@ target_model_fits <- targets::tar_target(
 # create data frame of fitted model summaries
 target_model_fits_summary <- targets::tar_target(
   model_fits_summary,
-  command = dplyr::bind_cols(
-    dplyr::select(model_fits, model_id),
-    broom::tidy(model_fits$.fit[[1]])
-  ),
-  pattern = map(model_fits),
-  iteration = "list"
+  command = purrr::map(model_fits, \(x) {
+    dplyr::bind_cols(
+      dplyr::select(x, model_id),
+      broom::tidy(x$.fit[[1]])
+    )
+  }) |>
+    purrr::list_rbind() |>
+    dplyr::left_join(
+      models_to_run,
+      by = "model_id"
+    ) |>
+    dplyr::relocate(tidyselect::all_of(names(models_to_run)))
 )
 
 # create mgcv::gam.check() plots for fitted models
@@ -351,7 +364,6 @@ target_model_fits_gam_check_plots <- targets::tar_target(
   command = create_gam_check_plot(
     model = model_fits,
     model_info = models_to_run,
-    ,
     dir_out = fs::path(opt$dir_processing, "output")
   ),
   pattern = map(model_fits),
@@ -411,7 +423,25 @@ target_model_fit_resamples_spatial_5 <- targets::tar_target(
     )
   ),
   pattern = cross(model_workflows, data_analysis_resamples_spatial_5),
-  iteration = "list"
+  iteration = "list",
+  cue = targets::tar_cue(command = FALSE)
+)
+
+# create data frame of 5-fold spatial cross-validation metrics
+target_model_fit_resamples_spatial_5_metrics <- targets::tar_target(
+  model_fit_resamples_spatial_5_metrics,
+  command = purrr::map(model_fit_resamples_spatial_5, \(x) {
+    dplyr::bind_cols(
+      dplyr::select(x, model_id, split_id),
+      tune::collect_metrics(x$.fit[[1]])
+    )
+  }) |>
+    purrr::list_rbind() |>
+    dplyr::left_join(
+      models_to_run,
+      by = "model_id"
+    ) |>
+    dplyr::relocate(tidyselect::all_of(names(models_to_run)))
 )
 
 # fit models via 10-fold spatial resampling
@@ -443,6 +473,22 @@ target_model_fit_resamples_spatial_10 <- targets::tar_target(
   iteration = "list"
 )
 
+# create data frame of 10-fold spatial cross-validation metrics
+target_model_fit_resamples_spatial_10_metrics <- targets::tar_target(
+  model_fit_resamples_spatial_10_metrics,
+  command = purrr::map(model_fit_resamples_spatial_10, \(x) {
+    dplyr::bind_cols(
+      dplyr::select(x, model_id, split_id),
+      tune::collect_metrics(x$.fit[[1]])
+    )
+  }) |>
+    purrr::list_rbind() |>
+    dplyr::left_join(
+      models_to_run,
+      by = "model_id"
+    ) |>
+    dplyr::relocate(tidyselect::all_of(names(models_to_run)))
+)
 
 # specify model prediction targets ----------------------------------------
 
@@ -801,9 +847,11 @@ list(
   # target_model_fits_gam_check_plots,
   # target_model_fits_plots,
   # target_model_fits_plots_se,
-  target_model_fit_resamples_spatial_5,
-  target_model_fit_resamples_spatial_10
-  # target_model_predictions,
+  # target_model_fit_resamples_spatial_5,
+  # target_model_fit_resamples_spatial_5_metrics,
+  target_model_fit_resamples_spatial_10,
+  target_model_fit_resamples_spatial_10_metrics,
+  target_model_predictions
   # target_model_predictions_climatology_gfdl_1_historical,
   # target_model_predictions_climatology_gfdl_1_historical_rasters,
   # target_model_predictions_climatology_gfdl_1_historical_maps
