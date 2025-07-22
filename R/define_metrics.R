@@ -16,7 +16,14 @@ rmsle <- function(data, ...) {
 }
 rmsle <- yardstick::new_numeric_metric(rmsle, direction = "minimize")
 
-rmsle.data.frame <- function(data, truth, estimate, na_rm = TRUE, case_weights = NULL, ...) {
+rmsle.data.frame <- function(
+  data,
+  truth,
+  estimate,
+  na_rm = TRUE,
+  case_weights = NULL,
+  ...
+) {
   yardstick::numeric_metric_summarizer(
     name = "rmsle",
     fn = rmsle_vec,
@@ -46,4 +53,124 @@ rmsle_vec <- function(truth, estimate, na_rm = TRUE, case_weights = NULL, ...) {
 
 rmsle_impl <- function(truth, estimate, case_weights = NULL) {
   sqrt(mean((log(estimate + 1) - log(truth + 1))^2))
+}
+
+
+#' Negative binomial log-loss calculation
+#'
+#' Calculate the negative log-likelihood for a negative binomial model fit.
+#' This function extracts the fitted model, theta parameter, observed values,
+#' and predicted values to compute the log-loss metric.
+#'
+#' @param object A model fit object containing the fitted model results,
+#'   typically from a tidymodels workflow or tune results. The object should
+#'   contain `.fit` column with model fits that include extracts and predictions.
+#'
+#' @return A numeric value representing the negative log-likelihood (log-loss)
+#'   for the negative binomial model. Lower values indicate better model fit.
+#'
+#' @details
+#' The function performs the following steps:
+#' \enumerate{
+#'   \item Extracts the fitted GAM model engine
+#'   \item Retrieves the theta (dispersion) parameter from the negative binomial family
+#'   \item Identifies the outcome variable name
+#'   \item Extracts observed values from the assessment set
+#'   \item Extracts predicted values
+#'   \item Calculates log-likelihoods using the negative binomial distribution
+#'   \item Returns the negative sum of log-likelihoods
+#' }
+#'
+#' @examples
+#' \dontrun{
+#' # Assuming you have a fitted model object with negative binomial family
+#' log_loss_value <- calculate_nbinom_log_loss(fitted_model_object)
+#' }
+calculate_nbinom_log_loss <- function(object) {
+  # Extract the fitted GAM model engine from the tune results
+  model_gam <- tune::collect_extracts(object) |>
+    dplyr::pull(.extracts) |>
+    purrr::pluck(1) |>
+    purrr::pluck(2) |>
+    parsnip::extract_fit_engine()
+
+  # Get the theta (dispersion) parameter from the negative binomial family
+  theta <- model_gam$family$getTheta(TRUE)
+
+  # Identify the outcome variable name from the model recipe
+  y_var <- tune::collect_extracts(object) |>
+    dplyr::pull(.extracts) |>
+    purrr::pluck(1) |>
+    purrr::pluck(1) |>
+    summary() |>
+    dplyr::filter(role == "outcome") |>
+    dplyr::pull(variable)
+
+  # Extract observed values from the assessment (test) set
+  y_obs <- dplyr::pull(object, splits) |>
+    purrr::pluck(1) |>
+    rsample::assessment() |>
+    dplyr::pull(!!y_var)
+
+  # Extract predicted values from tune results
+  mu_pred <- tune::collect_predictions(object) |>
+    dplyr::pull(.pred)
+
+  # Calculate log-likelihoods for each observation using negative binomial distribution
+  log_likelihoods <- stats::dnbinom(
+    x = y_obs,
+    mu = mu_pred,
+    size = theta,
+    log = TRUE
+  )
+
+  # Return negative sum of log-likelihoods (log-loss)
+  -sum(log_likelihoods)
+}
+
+# predicted density in cells with no observed presence
+# caution: this is experimental
+# conception: Arliss Winship
+calculate_pdnp <- function(r, data, column, monthly = TRUE, power = 2) {
+  if (monthly) {
+    cells_present <- purrr::map(1:12, .f = \(x) {
+      terra::extract(
+        r,
+        y = dplyr::filter(
+          data,
+          .data[[column]] > 0,
+          lubridate::month(date) == !!x
+        ) |>
+          terra::vect(),
+        cells = TRUE
+      ) |>
+        dplyr::pull(cell) |>
+        unique()
+    })
+  } else {
+    cells_present <- terra::extract(
+      r,
+      y = dplyr::filter(data, .data[[column]] > 0) |>
+        terra::vect(),
+      cells = TRUE
+    ) |>
+      dplyr::pull(cell) |>
+      unique()
+  }
+
+  df <- terra::as.data.frame(r, cells = TRUE) |>
+    dplyr::mutate(dplyr::across(!cell, ~ .x^power)) |>
+    tibble::as_tibble()
+
+  df_sum <- dplyr::select(df, !cell) |>
+    sum(na.rm = TRUE)
+
+  purrr::map(1:12, .f = \(x) {
+    dplyr::filter(df, !(cell %in% cells_present[[x]])) |>
+      dplyr::pull(month.name[x]) |>
+      sum(na.rm = TRUE) /
+      df_sum
+  }) |>
+    purrr::list_c() |>
+    sum()
 }
