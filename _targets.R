@@ -286,6 +286,7 @@ target_models_to_run <- targets::tar_target(
 # )
 
 # define model metrics
+# TO DO: consider calculating the negative binomial log likelihood (with theta as estimated by the model) for the out-of-sample data. This may prove to be a useful metric for choosing the best model via cross-validation.
 target_model_metrics <- targets::tar_target(
   model_metrics,
   command = yardstick::metric_set(
@@ -433,7 +434,17 @@ target_model_fit_resamples_spatial_5_metrics <- targets::tar_target(
   command = purrr::map(model_fit_resamples_spatial_5, \(x) {
     dplyr::bind_cols(
       dplyr::select(x, model_id, split_id),
-      tune::collect_metrics(x$.fit[[1]])
+      dplyr::bind_rows(
+        tune::collect_metrics(x$.fit[[1]]),
+        dplyr::tibble(
+          .metric = "nbinom_log_loss",
+          .estimator = "standard",
+          mean = calculate_nbinom_log_loss(x$.fit[[1]]),
+          n = 1L,
+          std_err = NA,
+          .config = NA
+        )
+      )
     )
   }) |>
     purrr::list_rbind() |>
@@ -479,7 +490,17 @@ target_model_fit_resamples_spatial_10_metrics <- targets::tar_target(
   command = purrr::map(model_fit_resamples_spatial_10, \(x) {
     dplyr::bind_cols(
       dplyr::select(x, model_id, split_id),
-      tune::collect_metrics(x$.fit[[1]])
+      dplyr::bind_rows(
+        tune::collect_metrics(x$.fit[[1]]),
+        dplyr::tibble(
+          .metric = "nbinom_log_loss",
+          .estimator = "standard",
+          mean = calculate_nbinom_log_loss(x$.fit[[1]]),
+          n = 1L,
+          std_err = NA,
+          .config = NA
+        )
+      )
     )
   }) |>
     purrr::list_rbind() |>
@@ -490,7 +511,31 @@ target_model_fit_resamples_spatial_10_metrics <- targets::tar_target(
     dplyr::relocate(tidyselect::all_of(names(models_to_run)))
 )
 
-# specify model prediction targets ----------------------------------------
+# select single model for each species based on huber loss metric
+target_models_to_run_selected <- targets::tar_target(
+  models_to_run_selected,
+  command = model_fit_resamples_spatial_10_metrics |>
+    dplyr::filter(spatial_effect, .metric == "huber_loss") |>
+    dplyr::group_by(model_id, sortorder, code, mgcv_gamma, spatial_effect) |>
+    dplyr::summarise(mean = mean(mean, na.rm = TRUE)) |>
+    dplyr::group_by(sortorder, code, spatial_effect) |>
+    dplyr::summarise(mgcv_gamma = mgcv_gamma[which.min(mean)]) |>
+    dplyr::inner_join(models_to_run) |>
+    dplyr::relocate(tidyselect::all_of(names(models_to_run)))
+)
+target_model_workflows_selected <- targets::tar_target(
+  model_workflows_selected,
+  command = dplyr::bind_rows(model_workflows) |>
+    dplyr::filter(model_id %in% models_to_run_selected$model_id)
+)
+target_model_fits_selected <- targets::tar_target(
+  model_fits_selected,
+  command = dplyr::bind_rows(model_fits) |>
+    dplyr::filter(model_id %in% models_to_run_selected$model_id)
+)
+
+
+# specify model prediction targets for historical period ------------------
 
 # create predictions from fitted models
 values_model_predictions <- values_data_prediction |>
@@ -626,15 +671,13 @@ target_model_predictions_climatology_gfdl_1_historical <- targets::tar_target(
 # save summarized predictions as raster GeoTIFFs
 target_model_predictions_climatology_gfdl_1_historical_rasters <- targets::tar_target(
   model_predictions_climatology_gfdl_1_historical_rasters,
-  command = {
-    save_raster(
-      model_predictions_climatology_gfdl_1_historical,
-      model_info = models_to_run,
-      grid = grid_10km,
-      crop = study_polygon,
-      dir_out = fs::path(opt$dir_processing, "output")
-    )
-  },
+  command = create_raster(
+    model_predictions_climatology_gfdl_1_historical,
+    model_info = models_to_run,
+    grid = grid_10km,
+    crop = study_polygon,
+    dir_out = fs::path(opt$dir_processing, "output")
+  ),
   pattern = model_predictions_climatology_gfdl_1_historical,
   format = "file",
   iteration = "list"
@@ -643,17 +686,193 @@ target_model_predictions_climatology_gfdl_1_historical_rasters <- targets::tar_t
 # save summarized predictions as monthly map panel PNG files
 target_model_predictions_climatology_gfdl_1_historical_maps <- targets::tar_target(
   model_predictions_climatology_gfdl_1_historical_maps,
-  command = {
-    create_map(
-      model_predictions_climatology_gfdl_1_historical,
-      model_info = models_to_run,
-      species_info = data_species_info,
-      land = shoreline_polygon,
-      borders = list(country_lines, state_lines),
-      dir_out = fs::path(opt$dir_processing, "output")
-    )
-  },
+  command = create_map(
+    model_predictions_climatology_gfdl_1_historical,
+    model_info = models_to_run,
+    species_info = data_species_info,
+    land = shoreline_polygon,
+    borders = list(country_lines, state_lines),
+    dir_out = fs::path(opt$dir_processing, "output")
+  ),
   pattern = model_predictions_climatology_gfdl_1_historical,
+  format = "file",
+  iteration = "list"
+)
+
+# experimental: calculate pdnp for each model
+target_model_predictions_climatology_gfdl_1_historical_pdnp <- targets::tar_target(
+  model_predictions_climatology_gfdl_1_historical_pdnp,
+  command = dplyr::filter(
+    models_to_run,
+    model_id == unique(model_predictions_climatology_gfdl_1_historical$model_id)
+  ) |>
+    dplyr::select(!model_formula) |>
+    dplyr::mutate(
+      pdnp = create_raster(
+        model_predictions_climatology_gfdl_1_historical,
+        model_info = models_to_run,
+        grid = grid_10km,
+        crop = study_polygon
+      ) |>
+        calculate_pdnp(
+          data = data_analysis,
+          column = code,
+          monthly = TRUE,
+          power = 2
+        )
+    ),
+  pattern = model_predictions_climatology_gfdl_1_historical,
+  iteration = "list"
+)
+target_model_predictions_climatology_gfdl_1_historical_pdnp_combined <- targets::tar_target(
+  model_predictions_climatology_gfdl_1_historical_pdnp_combined,
+  command = model_predictions_climatology_gfdl_1_historical_pdnp
+)
+
+
+# specify model prediction targets for mid-century period -----------------
+
+# create predictions from fitted models
+values_model_predictions_future <- values_data_prediction |>
+  dplyr::mutate(
+    v_target = glue::glue("data_prediction_{v_esm}_{v_year}") |>
+      rlang::syms()
+  ) |>
+  dplyr::filter(v_esm == "gfdl", v_year %in% 2035:2064)
+target_model_predictions_future <- tarchetypes::tar_map(
+  values = values_model_predictions_future,
+  targets::tar_target(
+    model_predictions_daily_future,
+    command = make_predictions(
+      model_fits_selected$.fit[[1]],
+      data = v_target,
+      label = "reanalysis",
+      add = list(depth = data_bathy_10km, slope = data_slope_10km),
+      mask = study_polygon
+    ) |>
+      dplyr::mutate(model_id = model_fits_selected$model_id, .before = 1),
+    pattern = map(model_fits_selected),
+    iteration = "list"
+  ),
+  targets::tar_target(
+    model_predictions_monthly_future,
+    command = dplyr::mutate(
+      model_predictions_daily_future,
+      year = lubridate::year(date),
+      month = lubridate::month(date)
+    ) |>
+      dplyr::group_by(model_id, esm, cell, x, y, year, month) |>
+      dplyr::summarise(.ndays = dplyr::n(), .mean_pred = mean(.pred)) |>
+      dplyr::ungroup(),
+    pattern = map(model_predictions_daily_future),
+    iteration = "list"
+  ),
+  names = tidyselect::all_of(c("v_esm", "v_year"))
+)
+
+# combine/summarize predictions (i.e., create monthly "climatologies") for each model
+target_model_predictions_climatology_gfdl_2_midcentury <- targets::tar_target(
+  model_predictions_climatology_gfdl_2_midcentury,
+  command = dplyr::bind_rows(
+    model_predictions_monthly_gfdl_2035,
+    model_predictions_monthly_gfdl_2036,
+    model_predictions_monthly_gfdl_2037,
+    model_predictions_monthly_gfdl_2038,
+    model_predictions_monthly_gfdl_2039,
+    model_predictions_monthly_gfdl_2040,
+    model_predictions_monthly_gfdl_2041,
+    model_predictions_monthly_gfdl_2042,
+    model_predictions_monthly_gfdl_2043,
+    model_predictions_monthly_gfdl_2044,
+    model_predictions_monthly_gfdl_2045,
+    model_predictions_monthly_gfdl_2046,
+    model_predictions_monthly_gfdl_2047,
+    model_predictions_monthly_gfdl_2048,
+    model_predictions_monthly_gfdl_2049,
+    model_predictions_monthly_gfdl_2050,
+    model_predictions_monthly_gfdl_2051,
+    model_predictions_monthly_gfdl_2052,
+    model_predictions_monthly_gfdl_2053,
+    model_predictions_monthly_gfdl_2054,
+    model_predictions_monthly_gfdl_2055,
+    model_predictions_monthly_gfdl_2056,
+    model_predictions_monthly_gfdl_2057,
+    model_predictions_monthly_gfdl_2058,
+    model_predictions_monthly_gfdl_2059,
+    model_predictions_monthly_gfdl_2060,
+    model_predictions_monthly_gfdl_2061,
+    model_predictions_monthly_gfdl_2062,
+    model_predictions_monthly_gfdl_2063,
+    model_predictions_monthly_gfdl_2064
+  ) |>
+    dplyr::group_by(model_id, esm, cell, x, y, month) |>
+    dplyr::summarise(
+      .mean_pred = stats::weighted.mean(.mean_pred, w = .ndays)
+    ) |>
+    dplyr::ungroup() |>
+    dplyr::mutate(period = "2_midcentury", .after = esm),
+  pattern = map(
+    model_predictions_monthly_gfdl_2035,
+    model_predictions_monthly_gfdl_2036,
+    model_predictions_monthly_gfdl_2037,
+    model_predictions_monthly_gfdl_2038,
+    model_predictions_monthly_gfdl_2039,
+    model_predictions_monthly_gfdl_2040,
+    model_predictions_monthly_gfdl_2041,
+    model_predictions_monthly_gfdl_2042,
+    model_predictions_monthly_gfdl_2043,
+    model_predictions_monthly_gfdl_2044,
+    model_predictions_monthly_gfdl_2045,
+    model_predictions_monthly_gfdl_2046,
+    model_predictions_monthly_gfdl_2047,
+    model_predictions_monthly_gfdl_2048,
+    model_predictions_monthly_gfdl_2049,
+    model_predictions_monthly_gfdl_2050,
+    model_predictions_monthly_gfdl_2051,
+    model_predictions_monthly_gfdl_2052,
+    model_predictions_monthly_gfdl_2053,
+    model_predictions_monthly_gfdl_2054,
+    model_predictions_monthly_gfdl_2055,
+    model_predictions_monthly_gfdl_2056,
+    model_predictions_monthly_gfdl_2057,
+    model_predictions_monthly_gfdl_2058,
+    model_predictions_monthly_gfdl_2059,
+    model_predictions_monthly_gfdl_2060,
+    model_predictions_monthly_gfdl_2061,
+    model_predictions_monthly_gfdl_2062,
+    model_predictions_monthly_gfdl_2063,
+    model_predictions_monthly_gfdl_2064
+  ),
+  iteration = "list"
+)
+
+# save summarized predictions as raster GeoTIFFs
+target_model_predictions_climatology_gfdl_2_midcentury_rasters <- targets::tar_target(
+  model_predictions_climatology_gfdl_2_midcentury_rasters,
+  command = create_raster(
+    model_predictions_climatology_gfdl_2_midcentury,
+    model_info = models_to_run,
+    grid = grid_10km,
+    crop = study_polygon,
+    dir_out = fs::path(opt$dir_processing, "output")
+  ),
+  pattern = model_predictions_climatology_gfdl_2_midcentury,
+  format = "file",
+  iteration = "list"
+)
+
+# save summarized predictions as monthly map panel PNG files
+target_model_predictions_climatology_gfdl_2_midcentury_maps <- targets::tar_target(
+  model_predictions_climatology_gfdl_2_midcentury_maps,
+  command = create_map(
+    model_predictions_climatology_gfdl_2_midcentury,
+    model_info = models_to_run,
+    species_info = data_species_info,
+    land = shoreline_polygon,
+    borders = list(country_lines, state_lines),
+    dir_out = fs::path(opt$dir_processing, "output")
+  ),
+  pattern = model_predictions_climatology_gfdl_2_midcentury,
   format = "file",
   iteration = "list"
 )
@@ -664,13 +883,7 @@ target_model_predictions_climatology_gfdl_1_historical_maps <- targets::tar_targ
 # fit models via bootstrap resampling
 target_model_workflows_final <- targets::tar_target(
   model_workflows_final,
-  command = {
-    idx <- dplyr::filter(models_to_run, spatial_effect) |>
-      dplyr::pull(model_id)
-    dplyr::bind_rows(model_workflows) |>
-      dplyr::filter(model_id %in% idx) |>
-      dplyr::slice_sample(n = 3)
-  }
+  command = dplyr::slice_sample(model_workflows_selected, n = 3)
 )
 target_model_fits_bootstraps <- targets::tar_target(
   model_fits_bootstraps,
@@ -847,14 +1060,23 @@ list(
   # target_model_fits_gam_check_plots,
   # target_model_fits_plots,
   # target_model_fits_plots_se,
-  # target_model_fit_resamples_spatial_5,
-  # target_model_fit_resamples_spatial_5_metrics,
+  target_model_fit_resamples_spatial_5,
+  target_model_fit_resamples_spatial_5_metrics,
   target_model_fit_resamples_spatial_10,
   target_model_fit_resamples_spatial_10_metrics,
-  target_model_predictions
+  target_models_to_run_selected,
+  target_model_workflows_selected,
+  target_model_fits_selected,
+  target_model_predictions,
+  target_model_predictions_future
   # target_model_predictions_climatology_gfdl_1_historical,
   # target_model_predictions_climatology_gfdl_1_historical_rasters,
-  # target_model_predictions_climatology_gfdl_1_historical_maps
+  # target_model_predictions_climatology_gfdl_1_historical_maps,
+  # target_model_predictions_climatology_gfdl_1_historical_pdnp,
+  # target_model_predictions_climatology_gfdl_1_historical_pdnp_combined,
+  # target_model_predictions_climatology_gfdl_2_midcentury,
+  # target_model_predictions_climatology_gfdl_2_midcentury_rasters,
+  # target_model_predictions_climatology_gfdl_2_midcentury_maps
   # target_model_workflows_final,
   # target_model_fits_bootstraps
 )
